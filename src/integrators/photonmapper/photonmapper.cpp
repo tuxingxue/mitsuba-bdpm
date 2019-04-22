@@ -107,7 +107,7 @@ public:
          * bounces this behavior should be stopped.
          */
         m_maxSpecularDepth = props.getInteger("maxSpecularDepth", 4);
-        /* Granularity of photon tracing work units (in shot particles, 0 => decide automatically) */
+        /* Granularity粒度 of photon tracing work units (in shot particles, 0 => decide automatically) */
         m_granularity = props.getInteger("granularity", 0);
         /* Number of photons to collect for the global photon map */
         m_globalPhotons = props.getSize("globalPhotons", 250000);
@@ -117,7 +117,7 @@ public:
         m_volumePhotons = props.getSize("volumePhotons", 250000);
         /* Max. radius of lookups in the global photon map (relative to the scene size) */
         m_globalLookupRadiusRel = props.getFloat("globalLookupRadius", 0.05f);
-        /* Max. radius of lookups in the caustic photon map (relative to the scene size) */
+        /* Max. radius of lookups in the caustic焦散 photon map (relative to the scene size) */
         m_causticLookupRadiusRel = props.getFloat("causticLookupRadius", 0.0125f);
         /* Minimum amount of photons to consider a photon map lookup valid */
         int lookupSize = props.getInteger("lookupSize", 120);

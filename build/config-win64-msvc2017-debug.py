@@ -5,7 +5,7 @@ CC              = 'cl'
 CXXFLAGS        = ['/nologo', '/Od', '/Z7', '/fp:fast', '/D', 'WIN32', '/D', 'WIN64', '/W3', '/EHsc', '/GS-', '/GL', '/MD', '/D', 'MTS_DEBUG', '/D', 'SINGLE_PRECISION', '/D', 'SPECTRUM_SAMPLES=3', '/D', 'MTS_SSE', '/D', 'MTS_HAS_COHERENT_RT', '/D', '_CONSOLE', '/D', 'DEBUG', '/D', 'OPENEXR_DLL', '/openmp']
 SHCXXFLAGS      = CXXFLAGS
 TARGET_ARCH     = 'x86_64'
-MSVC_VERSION    = '15.0'
+MSVC_VERSION    = '14.1'
 LINKFLAGS       = ['/nologo', '/SUBSYSTEM:CONSOLE', '/DEBUG', '/MACHINE:X64', '/FIXED:NO', '/OPT:REF', '/OPT:ICF', '/LTCG', '/NODEFAULTLIB:LIBCMT', '/MANIFEST']
 BASEINCLUDE     = ['#include', '#dependencies/include']
 BASELIB         = ['msvcrt', 'ws2_32', 'Half', 'zlib']
