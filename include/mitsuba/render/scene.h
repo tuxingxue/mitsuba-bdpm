@@ -886,6 +886,7 @@ public:
         const Emitter* &emitter,
         const Point2 &spatialSample,
         const Point2 &directionalSample,
+        Float &emPdf,       //增加一个储存emPdf的参数
         Float time) const;
 
     //! @}

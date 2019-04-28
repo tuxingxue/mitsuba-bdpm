@@ -197,7 +197,7 @@ public:
      */
     virtual void handleSurfaceInteraction(int depth, int nullInteractions,
         bool delta, const Intersection &its, const Medium *medium,
-        const Spectrum &weight);
+        const Spectrum &weight, const std::vector<Float> & vecPdf);
 
     /**
      * \brief Handle a medium interaction event
@@ -225,7 +225,7 @@ public:
      */
     virtual void handleMediumInteraction(int depth, int nullInteractions,
         bool delta, const MediumSamplingRecord &mRec, const Medium *medium,
-        const Vector &wi, const Spectrum &weight);
+        const Vector &wi, const Spectrum &weight, const std::vector<Float> & vecPdf);
 
     MTS_DECLARE_CLASS()
 protected:

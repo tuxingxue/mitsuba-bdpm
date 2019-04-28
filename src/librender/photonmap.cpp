@@ -20,6 +20,7 @@
 #include <mitsuba/render/scene.h>
 #include <mitsuba/render/phase.h>
 #include <fstream>
+#include <iostream>
 
 MTS_NAMESPACE_BEGIN
 
@@ -166,6 +167,8 @@ struct RawRadianceQuery {
             return;
 
         BSDFSamplingRecord bRec(its, its.toLocal(wi), its.wi, EImportance);
+
+        // std::cerr<<photon.toString().c_str()<<endl;
 
         Spectrum value = photon.getPower() * bsdf->eval(bRec);
         if (value.isZero())

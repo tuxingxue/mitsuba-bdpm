@@ -982,12 +982,13 @@ Spectrum Scene::sampleEmitterRay(Ray &ray,
         const Emitter* &emitter,
         const Point2 &spatialSample,
         const Point2 &directionalSample,
+        Float &emPdf,       //增加一个储存emPdf的参数
         Float time) const {
 
     Point2 sample(spatialSample);
 
     /* Randomly pick an emitter */
-    Float emPdf;
+    // Float emPdf;
     size_t index = m_emitterPDF.sampleReuse(sample.x, emPdf);
     emitter = m_emitters[index].get();
 

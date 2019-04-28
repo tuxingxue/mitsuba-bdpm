@@ -78,7 +78,7 @@ void Photon::serialize(Stream *stream) const {
 
 Photon::Photon(const Point &p, const Normal &normal,
                const Vector &dir, const Spectrum &P,
-               uint16_t _depth) {
+               uint16_t _depth, const std::vector<Float> &vecPdf) {
     if (!P.isValid())
         SLog(EWarn, "Creating an invalid photon with power: %s", P.toString().c_str());
     /* Possibly convert to single precision floating point
@@ -118,6 +118,8 @@ Photon::Photon(const Point &p, const Normal &normal,
 #else
     data.power = P;
 #endif
+
+    data.vecPdf = vecPdf;
 }
 
 std::string Photon::toString() const {
@@ -130,6 +132,11 @@ std::string Photon::toString() const {
         << "  axis = " << getAxis() << "," << endl
         << "  depth = " << getDepth() << endl
         << "]";
+
+    for(auto pdf : data.vecPdf)
+    {
+        oss<<pdf<<",";
+    }
     return oss.str();
 }
 

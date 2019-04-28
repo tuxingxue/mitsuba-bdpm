@@ -46,6 +46,7 @@ struct PhotonData {
     uint8_t thetaN;         //!< Discretized surface normal (\a theta component)
     uint8_t phiN;           //!< Discretized surface normal (\a phi component)
     uint16_t depth;         //!< Photon depth (number of preceding interactions)
+    std::vector<Float> vecPdf;
 };
 
 /** \brief Memory-efficient photon representation for use with
@@ -68,7 +69,7 @@ public:
     /// Construct from a photon interaction
     Photon(const Point &pos, const Normal &normal,
             const Vector &dir, const Spectrum &power,
-            uint16_t depth);
+            uint16_t depth, const std::vector<Float> &vecPdf);
 
     /// Unserialize from a binary data stream
     Photon(Stream *stream);

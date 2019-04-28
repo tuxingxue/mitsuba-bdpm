@@ -130,6 +130,9 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
         Spectrum power;
         Ray ray;
 
+        //储存pdf的vector
+        std::vector<Float> vecPdf;
+
         if (m_emissionEvents) {
             /* Sample the position and direction component separately to
                generate emission events */
@@ -150,9 +153,16 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
             /* Sample both components together, which is potentially
                faster / uses a better sampling strategy */
 
+            Float emPdf; //增加
+
             power = m_scene->sampleEmitterRay(ray, emitter,
-                m_sampler->next2D(), m_sampler->next2D(), pRec.time);
+                m_sampler->next2D(), m_sampler->next2D(), 
+                emPdf, //增加
+                pRec.time);
             medium = emitter->getMedium();
+
+            vecPdf.push_back(emPdf); 
+
             handleNewParticle();
         }
 
@@ -175,7 +185,7 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
 
                 /* Forward the medium scattering event to the attached handler */
                 handleMediumInteraction(depth, nullInteractions,
-                        delta, mRec, medium, -ray.d, throughput*power);
+                        delta, mRec, medium, -ray.d, throughput*power, vecPdf); //乱改的
 
                 PhaseFunctionSamplingRecord pRec(mRec, -ray.d, EImportance);
 
@@ -198,10 +208,12 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
                 const BSDF *bsdf = its.getBSDF();
 
                 /* Forward the surface scattering event to the attached handler */
-                handleSurfaceInteraction(depth, nullInteractions, delta, its, medium, throughput*power);
+                handleSurfaceInteraction(depth, nullInteractions, delta, its, medium, throughput*power, vecPdf);
 
                 BSDFSamplingRecord bRec(its, m_sampler, EImportance);
                 Spectrum bsdfWeight = bsdf->sample(bRec, m_sampler->next2D());
+                vecPdf.push_back(bsdf->pdf(bRec)); //是否需要第二个参数?
+
                 if (bsdfWeight.isZero())
                     break;
 
@@ -272,11 +284,11 @@ void ParticleTracer::handleNewParticle() { }
 
 void ParticleTracer::handleSurfaceInteraction(int depth, int nullInteractions,
     bool delta, const Intersection &its, const Medium *medium,
-    const Spectrum &weight) { }
+    const Spectrum &weight, const std::vector<Float> & vecPdf) { }
 
 void ParticleTracer::handleMediumInteraction(int depth, int nullInteractions,
     bool delta, const MediumSamplingRecord &mRec, const Medium *medium,
-    const Vector &wi, const Spectrum &weight) { }
+    const Vector &wi, const Spectrum &weight, const std::vector<Float> & vecPdf) { }
 
 MTS_IMPLEMENT_CLASS(RangeWorkUnit, false, WorkUnit)
 MTS_IMPLEMENT_CLASS(ParticleProcess, true, ParallelProcess)
