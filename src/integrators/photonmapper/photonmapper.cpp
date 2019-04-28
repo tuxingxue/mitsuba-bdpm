@@ -234,7 +234,7 @@ public:
         /* Create a deterministic sampler for the photon gathering step */
         ref<Scheduler> sched = Scheduler::getInstance();
         ref<Sampler> sampler = static_cast<Sampler *> (PluginManager::getInstance()->
-            createObject(MTS_CLASS(Sampler), Properties("halton")));
+            createObject(MTS_CLASS(Sampler), Properties("halton"))); //不懂
         /* Create a sampler instance for every core */
         std::vector<SerializableObject *> samplers(sched->getCoreCount());
         for (size_t i=0; i<sched->getCoreCount(); ++i) {

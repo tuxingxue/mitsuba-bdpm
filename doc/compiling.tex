@@ -317,6 +317,7 @@ configuration file from the \texttt{build} directory.
 
 \subsection{Building on Mac OS X}
 \vspace{-5mm}
+\iffalse
 \remarks{
     \item Unfortunately, OpenMP is not available when compiling
     using the regular \code{clang} toolchain.
@@ -339,6 +340,7 @@ configuration file from the \texttt{build} directory.
     You may install it with Homebrew (\code{brew install qt}) or by downloading
     the appropriate package from \url{https://qt.io}.
 }
+\fi
 Compiling Mitsuba's dependencies on Mac OS is a laborious process; for convenience, there
 is a repository that provides them in precompiled form. To use this repository, clone it
 using Git and rename the directory so that it forms the \code{dependencies} subdirectory

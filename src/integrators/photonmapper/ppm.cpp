@@ -366,7 +366,7 @@ public:
                     continue;
                 }
 
-                Float M = (Float) photonMap->estimateRadianceRaw(
+                Float M = (Float) photonMap->estimateRadianceRaw(  ///zhege
                     g.its, g.radius, flux, m_maxDepth == -1 ? INT_MAX : (m_maxDepth-g.depth));
                 Float N = g.N;
 
