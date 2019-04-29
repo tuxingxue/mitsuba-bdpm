@@ -2,7 +2,7 @@
  * 
  * 图形学大作业
  */
-
+#include<iostream>
 #include <mitsuba/render/scene.h>
 #include <mitsuba/core/statistics.h>
 #include <mitsuba/core/plugin.h>
@@ -30,7 +30,8 @@ public:
         /* Longest visualized path length (<tt>-1</tt>=infinite). When a positive value is
            specified, it must be greater or equal to <tt>2</tt>, which corresponds to single-bounce
            (direct-only) illumination */
-        m_maxDepth = props.getInteger("maxDepth", 10);          //已修改, 原始值为-1
+        m_maxDepth = props.getInteger("maxDepth", 10);          //已修改, 原始值为-
+        m_maxDepthRay = props.getInteger("maxDepthRay", 1);
         /* Depth to start using russian roulette */
         m_rrDepth = props.getInteger("rrDepth", 3);
         /* Indicates if the gathering steps should be canceled if not enough photons are generated. */
@@ -50,9 +51,9 @@ public:
     myIntegrator(Stream *stream, InstanceManager *manager)
         : MonteCarloIntegrator(stream, manager) { }
 
-    bool preprocess(const Scene *scene, RenderQueue *queue, const RenderJob *job,
+    bool render(Scene *scene, RenderQueue *queue, const RenderJob *job,
             int sceneResID, int sensorResID, int samplerResID) {
-        Integrator::preprocess(scene, queue, job, sceneResID, sensorResID, samplerResID);
+        // MonteCarloIntegrator::preprocess(scene, queue, job, sceneResID, sensorResID, samplerResID);
 
         if (m_initialRadius == 0) {
             /* Guess an initial radius if not provided
@@ -77,8 +78,13 @@ public:
         }
 
         int indepSamplerResID = sched->registerMultiResource(samplers);
+
+        m_totalEmissions = 0;
+        m_totalPhotons = 0;
         photonMapPass(0, queue, job, sceneResID, sensorResID, indepSamplerResID);
         //以上是添加的代码
+
+        SamplingIntegrator::render(scene, queue, job, sceneResID, sensorResID, samplerResID);
         return true;
     }
 
@@ -168,8 +174,7 @@ public:
 
         Spectrum throughput(1.0f);
         Float eta = 1.0f;
-
-        while (rRec.depth <= m_maxDepth || m_maxDepth < 0) {
+        while (rRec.depth <= m_maxDepthRay || m_maxDepthRay < 0) {
             if (!its.isValid()) {
                 /* If no intersection could be found, potentially return
                    radiance from a environment luminaire if it exists */
@@ -178,6 +183,14 @@ public:
                     Li += throughput * scene->evalEnvironment(ray);
                 break;
             }
+			/* 新增代码: 计算PhotonMap的evaluate */
+            Spectrum flux;
+            Float M = (Float) m_photonMap->estimateRadianceRaw(
+                its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth), rRec.depth); 
+                // its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth)); 
+                //计算方法需要修改, 跟photon的depth有关.
+            Li += throughput * flux/((Float) m_totalEmissions*m_initialRadius*m_initialRadius * M_PI); //需要修改
+            // Log(EInfo, Li.toString().c_str());
 
             const BSDF *bsdf = its.getBSDF(ray);
 
@@ -190,7 +203,7 @@ public:
             if (its.hasSubsurface() && (rRec.type & RadianceQueryRecord::ESubsurfaceRadiance))
                 Li += throughput * its.LoSub(scene, rRec.sampler, -ray.d, rRec.depth);
 
-            if ((rRec.depth >= m_maxDepth && m_maxDepth > 0)
+            if ((rRec.depth >= m_maxDepthRay && m_maxDepthRay > 0)
                 || (m_strictNormals && dot(ray.d, its.geoFrame.n)
                     * Frame::cosTheta(its.wi) >= 0)) {
 
@@ -202,13 +215,7 @@ public:
             }
 
             
-			/* 新增代码: 计算PhotonMap的evaluate */
-            Spectrum flux;
-            Float M = (Float) m_photonMap->estimateRadianceRaw(
-                its, m_initialRadius, flux, (m_maxDepth == -1 ? INT_MAX : (m_maxDepth - rRec.depth)), rRec.depth); 
-                //计算方法需要修改, 跟photon的depth有关.
-            Li += flux/((Float) m_totalEmissions * m_initialRadius*m_initialRadius * M_PI); //需要修改
-
+            
             /* ==================================================================== */
             /*                     Direct illumination sampling                     */
             /* ==================================================================== */
@@ -216,33 +223,33 @@ public:
             /* Estimate the direct illumination if this is requested */
             DirectSamplingRecord dRec(its);
 
-            // if (rRec.type & RadianceQueryRecord::EDirectSurfaceRadiance &&
-                // (bsdf->getType() & BSDF::ESmooth)) {
-                // Spectrum value = scene->sampleEmitterDirect(dRec, rRec.nextSample2D());
-                // if (!value.isZero()) {
-                    // const Emitter *emitter = static_cast<const Emitter *>(dRec.object);
+            if (rRec.type & RadianceQueryRecord::EDirectSurfaceRadiance &&
+                (bsdf->getType() & BSDF::ESmooth)) {
+                Spectrum value = scene->sampleEmitterDirect(dRec, rRec.nextSample2D());
+                if (!value.isZero()) {
+                    const Emitter *emitter = static_cast<const Emitter *>(dRec.object);
 
                     /* Allocate a record for querying the BSDF */
-                    // BSDFSamplingRecord bRec(its, its.toLocal(dRec.d), ERadiance);
+                    BSDFSamplingRecord bRec(its, its.toLocal(dRec.d), ERadiance);
 
                     /* Evaluate BSDF * cos(theta) */
-                    // const Spectrum bsdfVal = bsdf->eval(bRec);
+                    const Spectrum bsdfVal = bsdf->eval(bRec);
 
                     /* Prevent light leaks due to the use of shading normals */
-                    // if (!bsdfVal.isZero() && (!m_strictNormals
-                            // || dot(its.geoFrame.n, dRec.d) * Frame::cosTheta(bRec.wo) > 0)) {
+                    if (!bsdfVal.isZero() && (!m_strictNormals
+                            || dot(its.geoFrame.n, dRec.d) * Frame::cosTheta(bRec.wo) > 0)) {
 
                         /* Calculate prob. of having generated that direction
                            using BSDF sampling */
-                        // Float bsdfPdf = (emitter->isOnSurface() && dRec.measure == ESolidAngle)
-                            // ? bsdf->pdf(bRec) : 0;
+                        Float bsdfPdf = (emitter->isOnSurface() && dRec.measure == ESolidAngle)
+                            ? bsdf->pdf(bRec) : 0;
 
                         /* Weight using the power heuristic */
-                        // Float weight = miWeight(dRec.pdf, bsdfPdf);
-                        // Li += throughput * value * bsdfVal * weight;
-                    // }
-                // }
-            // }
+                        Float weight = miWeight(dRec.pdf, bsdfPdf);
+                        Li += throughput * value * bsdfVal * weight;
+                    }
+                }
+            }
 
             /* ==================================================================== */
             /*                            BSDF sampling                             */
@@ -365,7 +372,7 @@ public:
     ref<PhotonMap> m_photonMap;
     Float m_initialRadius, m_alpha;
     int m_photonCount, m_granularity;
-    int m_maxDepth, m_rrDepth;
+    int m_maxDepth, m_rrDepth, m_maxDepthRay;
     size_t m_totalEmissions, m_totalPhotons;
     int m_blockSize;
     bool m_running;
