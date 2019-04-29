@@ -23,14 +23,14 @@ public:
         /* Alpha parameter from the paper (influences the speed, at which the photon radius is reduced) */
         m_alpha = props.getFloat("alpha", .7);
         /* Number of photons to shoot in each iteration */
-        m_photonCount = props.getInteger("photonCount", 250000);
+        m_photonCount = props.getInteger("photonCount", 25000000);    //已修改,原始值为250000
         /* Granularity of the work units used in parallelizing the
            particle tracing task (default: choose automatically). */
         m_granularity = props.getInteger("granularity", 0);
         /* Longest visualized path length (<tt>-1</tt>=infinite). When a positive value is
            specified, it must be greater or equal to <tt>2</tt>, which corresponds to single-bounce
            (direct-only) illumination */
-        m_maxDepth = props.getInteger("maxDepth", -1);
+        m_maxDepth = props.getInteger("maxDepth", 10);          //已修改, 原始值为-1
         /* Depth to start using russian roulette */
         m_rrDepth = props.getInteger("rrDepth", 3);
         /* Indicates if the gathering steps should be canceled if not enough photons are generated. */
@@ -205,9 +205,9 @@ public:
 			/* 新增代码: 计算PhotonMap的evaluate */
             Spectrum flux;
             Float M = (Float) m_photonMap->estimateRadianceRaw(
-                its, m_initialRadius, flux, m_maxDepth == -1 ? INT_MAX : (m_maxDepth - rRec.depth)); 
+                its, m_initialRadius, flux, (m_maxDepth == -1 ? INT_MAX : (m_maxDepth - rRec.depth)), rRec.depth); 
                 //计算方法需要修改, 跟photon的depth有关.
-            Li += flux / rRec.depth; //需要修改
+            Li += flux/((Float) m_totalEmissions * m_initialRadius*m_initialRadius * M_PI); //需要修改
 
             /* ==================================================================== */
             /*                     Direct illumination sampling                     */

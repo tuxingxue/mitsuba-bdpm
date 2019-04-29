@@ -151,8 +151,8 @@ Spectrum PhotonMap::estimateRadiance(const Intersection &its,
 }
 
 struct RawRadianceQuery {
-    RawRadianceQuery(const Intersection &its, int maxDepth)
-      : its(its), maxDepth(maxDepth), result(0.0f) {
+    RawRadianceQuery(const Intersection &its, int maxDepth, int rayDepth)
+      : its(its), maxDepth(maxDepth),rayDepth(rayDepth),result(0.0f) {
         bsdf = its.getBSDF();
     }
 
@@ -178,18 +178,22 @@ struct RawRadianceQuery {
         value *= std::abs(Frame::cosTheta(bRec.wi) /
             (wiDotGeoN * Frame::cosTheta(bRec.wo)));
 
-        result += value;
+        if(rayDepth == -1)
+            result += value;
+        else 
+            result += value / (rayDepth + photon.getDepth());   //已修改
     }
 
     const Intersection &its;
     const BSDF *bsdf;
     int maxDepth;
+    int rayDepth;
     Spectrum result;
 };
 
 size_t PhotonMap::estimateRadianceRaw(const Intersection &its,
-        Float searchRadius, Spectrum &result, int maxDepth) const {
-    RawRadianceQuery query(its, maxDepth);
+        Float searchRadius, Spectrum &result, int maxDepth, int rayDepth) const {
+    RawRadianceQuery query(its, maxDepth, rayDepth);
     size_t count = m_kdtree.executeQuery(its.p, searchRadius, query);
     result = query.result;
     return count;

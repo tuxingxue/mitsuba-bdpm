@@ -127,7 +127,7 @@ public:
      * This function is meant to be used with progressive photon mapping.
      */
     size_t estimateRadianceRaw(const Intersection &its,
-        Float searchRadius, Spectrum &result, int maxDepth) const;
+        Float searchRadius, Spectrum &result, int maxDepth, int rayDepth = -1) const;
 
     /// Perform a nearest-neighbor query, see \ref PointKDTree for details
     inline size_t nnSearch(const Point &p, Float &sqrSearchRadius,
