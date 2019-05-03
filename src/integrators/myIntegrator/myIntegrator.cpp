@@ -184,16 +184,21 @@ public:
                     Li += throughput * scene->evalEnvironment(ray);
                 break;
             }
+            const BSDF *bsdf = its.getBSDF(ray);
+            //添加代码
+            bool mirrorReflect = bsdf->getType() & BSDF::ESmooth;
 			/* 新增代码: 计算PhotonMap的evaluate */
             Spectrum flux;
-            Float M = (Float) m_photonMap->estimateRadianceRaw(
-                its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth), rRec.depth); 
-                // its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth)); 
-                //计算方法需要修改, 跟photon的depth有关.
-            Li += throughput * flux/((Float) m_totalEmissions*m_initialRadius*m_initialRadius * M_PI); //需要修改
-            // Log(EInfo, Li.toString().c_str());
+            if(!mirrorReflect)
+            {
+                Float M = (Float) m_photonMap->estimateRadianceRaw(
+                    its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth), rRec.depth); 
+                    // its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth)); 
+                    //计算方法需要修改, 跟photon的depth有关.
+                Li += throughput * flux/((Float) m_totalEmissions*m_initialRadius*m_initialRadius * M_PI); //需要修改
+                // Log(EInfo, Li.toString().c_str());
+            }
 
-            const BSDF *bsdf = its.getBSDF(ray);
 
             /* Possibly include emitted radiance if requested */
             if (its.isEmitter() && (rRec.type & RadianceQueryRecord::EEmittedRadiance)
@@ -304,17 +309,18 @@ public:
                refractive index along the path */
             throughput *= bsdfWeight;
             eta *= bRec.eta;
-
+            
+            if (rRec.depth ==1 && mirrorReflect)
             /* If a luminaire was hit, estimate the local illumination and
                weight using the power heuristic */
-            // if (hitEmitter &&
-                // (rRec.type & RadianceQueryRecord::EDirectSurfaceRadiance)) {
+            if (hitEmitter &&
+                (rRec.type & RadianceQueryRecord::EDirectSurfaceRadiance)) {
                 /* Compute the prob. of generating that direction using the
                    implemented direct illumination sampling technique */
-                // const Float lumPdf = (!(bRec.sampledType & BSDF::EDelta)) ?
-                    // scene->pdfEmitterDirect(dRec) : 0;
-                // Li += throughput * value * miWeight(bsdfPdf, lumPdf);
-            // }
+                const Float lumPdf = (!(bRec.sampledType & BSDF::EDelta)) ?
+                    scene->pdfEmitterDirect(dRec) : 0;
+                Li += throughput * value * miWeight(bsdfPdf, lumPdf);
+            }
                 
 
             /* ==================================================================== */
@@ -327,7 +333,7 @@ public:
                 break;
             rRec.type = RadianceQueryRecord::ERadianceNoEmission;
 
-            if (rRec.depth++ >= m_rrDepth) {
+            if (rRec.depth >= m_rrDepth) {
                 /* Russian roulette: try to keep path weights equal to one,
                    while accounting for the solid angle compression at refractive
                    index boundaries. Stop with at least some probability to avoid
@@ -337,6 +343,7 @@ public:
                 if (rRec.nextSample1D() >= q)
                     break;
                 throughput /= q;
+                if(!mirrorReflect) rRec.depth++;
             }
         }
 
