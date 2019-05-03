@@ -182,7 +182,7 @@ public:
                 if ((rRec.type & RadianceQueryRecord::EEmittedRadiance)
                     && (!m_hideEmitters || scattered))
                     Li += throughput * scene->evalEnvironment(ray);
-                break;// denghui
+                break;
             }
 			/* 新增代码: 计算PhotonMap的evaluate */
             Spectrum flux;
@@ -307,14 +307,14 @@ public:
 
             /* If a luminaire was hit, estimate the local illumination and
                weight using the power heuristic */
-            if (hitEmitter &&
-                (rRec.type & RadianceQueryRecord::EDirectSurfaceRadiance)) {
+            // if (hitEmitter &&
+                // (rRec.type & RadianceQueryRecord::EDirectSurfaceRadiance)) {
                 /* Compute the prob. of generating that direction using the
                    implemented direct illumination sampling technique */
-                const Float lumPdf = (!(bRec.sampledType & BSDF::EDelta)) ?
-                    scene->pdfEmitterDirect(dRec) : 0;
-                Li += throughput * value * miWeight(bsdfPdf, lumPdf);
-            }
+                // const Float lumPdf = (!(bRec.sampledType & BSDF::EDelta)) ?
+                    // scene->pdfEmitterDirect(dRec) : 0;
+                // Li += throughput * value * miWeight(bsdfPdf, lumPdf);
+            // }
                 
 
             /* ==================================================================== */
