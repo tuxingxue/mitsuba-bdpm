@@ -30,7 +30,7 @@ public:
         /* Longest visualized path length (<tt>-1</tt>=infinite). When a positive value is
            specified, it must be greater or equal to <tt>2</tt>, which corresponds to single-bounce
            (direct-only) illumination */
-        m_maxDepth = props.getInteger("maxDepth", 10);          //已修改, 原始值为-
+        m_maxDepth = props.getInteger("maxDepth", -1);          //已修改, 原始值为-
         m_maxDepthRay = props.getInteger("maxDepthRay", 1);
         /* Depth to start using russian roulette */
         m_rrDepth = props.getInteger("rrDepth", 3);
@@ -174,14 +174,15 @@ public:
 
         Spectrum throughput(1.0f);
         Float eta = 1.0f;
+        //depth orgini =1
         while (rRec.depth <= m_maxDepthRay || m_maxDepthRay < 0) {
-            if (!its.isValid()) {
+            if (!its.isValid() && rRec.depth==1) {
                 /* If no intersection could be found, potentially return
                    radiance from a environment luminaire if it exists */
                 if ((rRec.type & RadianceQueryRecord::EEmittedRadiance)
                     && (!m_hideEmitters || scattered))
                     Li += throughput * scene->evalEnvironment(ray);
-                break;
+                break;// denghui
             }
 			/* 新增代码: 计算PhotonMap的evaluate */
             Spectrum flux;
@@ -275,7 +276,7 @@ public:
 
             /* Trace a ray in this direction */
             ray = Ray(its.p, wo, ray.time);
-            if (scene->rayIntersect(ray, its)) {
+            if (scene->rayIntersect(ray, its) && rRec.depth==1) {
                 /* Intersected something - check if it was a luminaire */
                 if (its.isEmitter()) {
                     value = its.Le(-ray.d);
@@ -286,7 +287,7 @@ public:
                 /* Intersected nothing -- perhaps there is an environment map? */
                 const Emitter *env = scene->getEnvironmentEmitter();
 
-                if (env) {
+                if (env && rRec.depth==1) {
                     if (m_hideEmitters && !scattered)
                         break;
 
