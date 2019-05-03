@@ -181,7 +181,7 @@ struct RawRadianceQuery {
         if(rayDepth == -1)
             result += value;
         else 
-            result += value / (rayDepth + photon.getDepth());   //已修改
+            result += value / (rayDepth + photon.getDepth()-1);   //已修改
     }
 
     const Intersection &its;
