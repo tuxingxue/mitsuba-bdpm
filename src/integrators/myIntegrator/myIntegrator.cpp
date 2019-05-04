@@ -185,14 +185,19 @@ public:
                 break;
             }
 			/* 新增代码: 计算PhotonMap的evaluate */
+
+            const BSDF *bsdf2 = its.getBSDF();
             Spectrum flux;
+            bool PhotonGet= (bsdf2->getType() & BSDF::EAll) == BSDF::EDiffuseReflection ||
+                                (bsdf2->getType() & BSDF::EAll) == BSDF::EDiffuseTransmission;
+           // if(PhotonGet||(rRec.depth >= m_maxDepthRay && m_maxDepthRay > 0)){
             Float M = (Float) m_photonMap->estimateRadianceRaw(
                 its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth), rRec.depth); 
                 // its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth)); 
                 //计算方法需要修改, 跟photon的depth有关.
             Li += throughput * flux/((Float) m_totalEmissions*m_initialRadius*m_initialRadius * M_PI); //需要修改
             // Log(EInfo, Li.toString().c_str());
-
+           // }
             const BSDF *bsdf = its.getBSDF(ray);
 
             /* Possibly include emitted radiance if requested */
@@ -215,7 +220,12 @@ public:
                 break;
             }
 
-            
+       /*      if(PhotonGet) {
+                rRec.depth++;
+                rRec.depth++;
+            }else{
+                rRec.depth++;
+            } */
             
             /* ==================================================================== */
             /*                     Direct illumination sampling                     */
@@ -276,18 +286,18 @@ public:
 
             /* Trace a ray in this direction */
             ray = Ray(its.p, wo, ray.time);
-            if (scene->rayIntersect(ray, its) && rRec.depth==1) {
+            if(scene->rayIntersect(ray, its)) {
                 /* Intersected something - check if it was a luminaire */
                 if (its.isEmitter()) {
-                    value = its.Le(-ray.d);
-                    dRec.setQuery(ray, its);
-                    hitEmitter = true;
-                }
+                     value = its.Le(-ray.d);
+                     dRec.setQuery(ray, its);
+                     hitEmitter = true;
+                 }
             } else {
                 /* Intersected nothing -- perhaps there is an environment map? */
                 const Emitter *env = scene->getEnvironmentEmitter();
 
-                if (env && rRec.depth==1) {
+                if (env) {
                     if (m_hideEmitters && !scattered)
                         break;
 
@@ -307,14 +317,14 @@ public:
 
             /* If a luminaire was hit, estimate the local illumination and
                weight using the power heuristic */
-            // if (hitEmitter &&
-                // (rRec.type & RadianceQueryRecord::EDirectSurfaceRadiance)) {
+            if (!PhotonGet && hitEmitter &&
+                (rRec.type & RadianceQueryRecord::EDirectSurfaceRadiance)) {  //只有在深度为1才执行
                 /* Compute the prob. of generating that direction using the
                    implemented direct illumination sampling technique */
-                // const Float lumPdf = (!(bRec.sampledType & BSDF::EDelta)) ?
-                    // scene->pdfEmitterDirect(dRec) : 0;
-                // Li += throughput * value * miWeight(bsdfPdf, lumPdf);
-            // }
+                const Float lumPdf = (!(bRec.sampledType & BSDF::EDelta)) ?
+                    scene->pdfEmitterDirect(dRec) : 0;
+                Li += throughput * value * miWeight(bsdfPdf, lumPdf);
+            }
                 
 
             /* ==================================================================== */
@@ -327,7 +337,7 @@ public:
                 break;
             rRec.type = RadianceQueryRecord::ERadianceNoEmission;
 
-            if (rRec.depth++ >= m_rrDepth) {
+            if (rRec.depth++ >= m_rrDepth) {  // 把depth放到前面加
                 /* Russian roulette: try to keep path weights equal to one,
                    while accounting for the solid angle compression at refractive
                    index boundaries. Stop with at least some probability to avoid
