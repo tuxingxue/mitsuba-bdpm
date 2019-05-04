@@ -123,7 +123,8 @@ Photon::Photon(const Point &p, const Normal &normal,
 }
 Photon::Photon(const Point &p, const Normal &normal,
                const Vector &dir, const Spectrum &P,
-               uint16_t _depth, const std::vector<Float> &vecPdf, const std::vector<Float> & vecInvPdf, Spectrum throughput,const Vector & wi)
+               uint16_t _depth, const std::vector<Float> &vecPdf, const std::vector<Float> & vecInvPdf, 
+               const std::vector<Spectrum> & vecInvEval, Spectrum throughput,const Vector & wi)
 {
     if (!P.isValid())
         SLog(EWarn, "Creating an invalid photon with power: %s", P.toString().c_str());
@@ -167,6 +168,7 @@ Photon::Photon(const Point &p, const Normal &normal,
 
     data.vecPdf = vecPdf;
     data.vecInvPdf = vecInvPdf;
+    data.vecInvEval = vecInvEval;
     data.throughput = throughput;
     data.wi = wi;    
 }

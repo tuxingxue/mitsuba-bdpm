@@ -129,6 +129,13 @@ public:
     size_t estimateRadianceRaw(const Intersection &its,
         Float searchRadius, Spectrum &result, int maxDepth, int rayDepth = -1) const;
 
+    //添加
+    size_t estimateRadianceRawNew(const Intersection &its,
+        Float searchRadius, Spectrum &result, int maxDepth, int rayDepth, int rrDepth,
+        const std::vector<Float> & rayPdf,const std::vector<Float> & rayInvPdf,
+        const std::vector<Spectrum> & vecInvEval,
+        Spectrum throughput, const std::vector<Vector> & vecWi) const;
+
     /// Perform a nearest-neighbor query, see \ref PointKDTree for details
     inline size_t nnSearch(const Point &p, Float &sqrSearchRadius,
         size_t k, SearchResult *results) const {

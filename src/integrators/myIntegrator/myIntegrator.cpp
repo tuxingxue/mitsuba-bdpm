@@ -178,6 +178,10 @@ public:
         //depth orgini =1
         //rRec.extra = rRec.depth;
         std::vector<Float> rayPdf;
+        std::vector<Float> rayInvPdf;
+        std::vector<Spectrum> vecInvEval;
+        std::vector<Spectrum> vecThroughput;
+        std::vector<Vector> vecWi;
         while (rRec.depth <= m_maxDepthRay || m_maxDepthRay < 0) {
             if (!its.isValid() && rRec.depth==1) {
                 /* If no intersection could be found, potentially return
@@ -196,8 +200,9 @@ public:
             bool PhotonGet= (bsdf2->getType() & BSDF::EAll) == BSDF::EDiffuseReflection ||
                                 (bsdf2->getType() & BSDF::EAll) == BSDF::EDiffuseTransmission;
             //if(PhotonGet||(rRec.extra >= m_maxDepthRay && m_maxDepthRay > 0)){
-            Float M = (Float) m_photonMap->estimateRadianceRaw(
-                its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth), rRec.depth); 
+            Float M = (Float) m_photonMap->estimateRadianceRawNew(
+                its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth), rRec.depth,
+                 m_rrDepth, rayPdf, rayInvPdf,vecInvEval, throughput, vecWi); //需要传入当前vector
                 // its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth)); 
                 //计算方法需要修改, 跟photon的depth有关.
             Li += throughput * flux/((Float) m_totalEmissions*m_initialRadius*m_initialRadius * M_PI); //需要修改
@@ -278,6 +283,16 @@ public:
             if (bsdfWeight.isZero())
                 break;
 
+            //添加
+            Float tmpInvPdf; 
+            Spectrum tmpInvEval;
+            BSDFSamplingRecord tmpbRec = bRec;
+            Vector tmpWi = bRec.wi;
+            tmpbRec.wi = bRec.wo;
+            tmpbRec.wo = bRec.wi;
+            tmpInvPdf = bsdf->pdf(tmpbRec, tmpbRec.sampledType ==BSDF:: EDeltaReflection?EDiscrete:ESolidAngle);
+            tmpInvEval = bsdf->eval(tmpbRec, tmpbRec.sampledType ==BSDF:: EDeltaReflection?EDiscrete:ESolidAngle);
+
             scattered |= bRec.sampledType != BSDF::ENull;
 
             /* Prevent light leaks due to the use of shading normals */
@@ -315,8 +330,8 @@ public:
                 }
             }
 
-            Log(EInfo,"PDF %lf SAMPDF %lf",bsdf->pdf(bRec,bRec.sampledType ==BSDF:: EDeltaReflection?EDiscrete:ESolidAngle), bsdfPdf);
-            Log(EInfo,"WGT%s SAMWGT%s",bsdf->eval(bRec,bRec.sampledType ==  BSDF::EDeltaReflection? EDiscrete:ESolidAngle).toString().c_str(), (bsdfWeight* bsdfPdf).toString().c_str());
+            // Log(EInfo,"PDF %lf SAMPDF %lf",bsdf->pdf(bRec,bRec.sampledType ==BSDF:: EDeltaReflection?EDiscrete:ESolidAngle), bsdfPdf);
+            // Log(EInfo,"WGT%s SAMWGT%s",bsdf->eval(bRec,bRec.sampledType ==  BSDF::EDeltaReflection? EDiscrete:ESolidAngle).toString().c_str(), (bsdfWeight* bsdfPdf).toString().c_str());
             /* Keep track of the throughput and relative
                refractive index along the path */
             throughput *= bsdfWeight;
@@ -359,6 +374,10 @@ public:
             }
             else
                 rayPdf.push_back(bsdfPdf);
+            rayInvPdf.push_back(tmpInvPdf);
+            vecThroughput.push_back(throughput);
+            vecWi.push_back(tmpWi);
+            vecInvEval.push_back(tmpInvEval);
             // Log(EInfo,"%lf %f",bsdfPdf,bsdfPdf);
         }
 

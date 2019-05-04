@@ -48,6 +48,7 @@ struct PhotonData {
     uint16_t depth;         //!< Photon depth (number of preceding interactions)
     std::vector<Float> vecPdf;
     std::vector<Float> vecInvPdf;
+    std::vector<Spectrum> vecInvEval;
     Spectrum throughput;
     Vector wi;
 };
@@ -76,7 +77,8 @@ public:
     //已添加
     Photon(const Point &pos, const Normal &normal,
             const Vector &dir, const Spectrum &power,
-            uint16_t depth, const std::vector<Float> &vecPdf, const std::vector<Float> & vecInvPdf, Spectrum throughput, const Vector & wi);
+            uint16_t depth, const std::vector<Float> &vecPdf, const std::vector<Float> & vecInvPdf,
+            const std::vector<Spectrum> & vecInvEval, Spectrum throughput, const Vector & wi);
 
     /// Unserialize from a binary data stream
     Photon(Stream *stream);
