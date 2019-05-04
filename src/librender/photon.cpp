@@ -121,6 +121,55 @@ Photon::Photon(const Point &p, const Normal &normal,
 
     data.vecPdf = vecPdf;
 }
+Photon::Photon(const Point &p, const Normal &normal,
+               const Vector &dir, const Spectrum &P,
+               uint16_t _depth, const std::vector<Float> &vecPdf, const std::vector<Float> & vecInvPdf, Spectrum throughput,const Vector & wi)
+{
+    if (!P.isValid())
+        SLog(EWarn, "Creating an invalid photon with power: %s", P.toString().c_str());
+    /* Possibly convert to single precision floating point
+       (if Mitsuba is configured to use double precision) */
+    position = p;
+    data.depth = _depth;
+    flags = 0;
+
+    /* Convert the direction into an approximate spherical
+       coordinate format to reduce storage requirements */
+    data.theta = (uint8_t) std::min(255,
+        (int) (math::safe_acos(dir.z) * (256.0 / M_PI)));
+
+    int tmp = std::min(255,
+        (int) (std::atan2(dir.y, dir.x) * (256.0 / (2.0 * M_PI))));
+    if (tmp < 0)
+        data.phi = (uint8_t) (tmp + 256);
+    else
+        data.phi = (uint8_t) tmp;
+
+    if (normal.isZero()) {
+        data.thetaN = data.phiN = 0;
+    } else {
+        data.thetaN = (uint8_t) std::min(255,
+            (int) (math::safe_acos(normal.z) * (256.0 / M_PI)));
+        tmp = std::min(255,
+            (int) (std::atan2(normal.y, normal.x) * (256.0 / (2.0 * M_PI))));
+        if (tmp < 0)
+            data.phiN = (uint8_t) (tmp + 256);
+        else
+            data.phiN = (uint8_t) tmp;
+    }
+
+#if defined(SINGLE_PRECISION) && SPECTRUM_SAMPLES == 3
+    /* Pack the photon power into Greg Ward's RGBE format */
+    P.toRGBE(data.power);
+#else
+    data.power = P;
+#endif
+
+    data.vecPdf = vecPdf;
+    data.vecInvPdf = vecInvPdf;
+    data.throughput = throughput;
+    data.wi = wi;    
+}
 
 std::string Photon::toString() const {
     std::ostringstream oss;

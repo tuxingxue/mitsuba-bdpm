@@ -47,6 +47,9 @@ struct PhotonData {
     uint8_t phiN;           //!< Discretized surface normal (\a phi component)
     uint16_t depth;         //!< Photon depth (number of preceding interactions)
     std::vector<Float> vecPdf;
+    std::vector<Float> vecInvPdf;
+    Spectrum throughput;
+    Vector wi;
 };
 
 /** \brief Memory-efficient photon representation for use with
@@ -70,6 +73,10 @@ public:
     Photon(const Point &pos, const Normal &normal,
             const Vector &dir, const Spectrum &power,
             uint16_t depth, const std::vector<Float> &vecPdf);
+    //已添加
+    Photon(const Point &pos, const Normal &normal,
+            const Vector &dir, const Spectrum &power,
+            uint16_t depth, const std::vector<Float> &vecPdf, const std::vector<Float> & vecInvPdf, Spectrum throughput, const Vector & wi);
 
     /// Unserialize from a binary data stream
     Photon(Stream *stream);

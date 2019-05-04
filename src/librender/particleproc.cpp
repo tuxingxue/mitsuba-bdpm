@@ -132,6 +132,7 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
 
         //储存pdf的vector
         std::vector<Float> vecPdf;
+        std::vector<Float> vecInvPdf;
 
         if (m_emissionEvents) {
             /* Sample the position and direction component separately to
@@ -171,17 +172,19 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
 
         Spectrum throughput(1.0f); // unitless path throughput (used for russian roulette)
         while (!throughput.isZero() && (depth <= m_maxDepth || m_maxDepth < 0)) {
+            Float tmpPdf,tmpInvPdf;
             m_scene->rayIntersectAll(ray, its);
 
             /* ==================================================================== */
             /*                 Radiative Transfer Equation sampling                 */
             /* ==================================================================== */
+            if(medium)    Log(EInfo, "medium");
             if (medium && medium->sampleDistance(Ray(ray, 0, its.t), mRec, m_sampler)) {
                 /* Sample the integral
                   \int_x^y tau(x, x') [ \sigma_s \int_{S^2} \rho(\omega,\omega') L(x,\omega') d\omega' ] dx'
                 */
-
                 throughput *= mRec.sigmaS * mRec.transmittance / mRec.pdfSuccess;
+                tmpPdf = 1.0/mRec.pdfSuccess;
 
                 /* Forward the medium scattering event to the attached handler */
                 handleMediumInteraction(depth, nullInteractions,
@@ -207,12 +210,19 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
 
                 const BSDF *bsdf = its.getBSDF();
 
-                /* Forward the surface scattering event to the attached handler */
-                handleSurfaceInteraction(depth, nullInteractions, delta, its, medium, throughput*power, vecPdf);
 
                 BSDFSamplingRecord bRec(its, m_sampler, EImportance);
                 Spectrum bsdfWeight = bsdf->sample(bRec, m_sampler->next2D());
-                vecPdf.push_back(bsdf->pdf(bRec)); //是否需要第二个参数?
+
+                /* Forward the surface scattering event to the attached handler */
+                handleSurfaceInteraction(depth, nullInteractions, delta, its, medium, throughput*power, vecPdf, vecInvPdf, throughput, bRec.wi); //已移位
+
+                tmpPdf = bsdf->pdf(bRec,bRec.sampledType ==BSDF:: EDeltaReflection?EDiscrete:ESolidAngle);
+                BSDFSamplingRecord tmpbRec = bRec;
+                tmpbRec.wi = bRec.wo;
+                tmpbRec.wo = bRec.wi;
+                tmpInvPdf = bsdf->pdf(tmpbRec,tmpbRec.sampledType ==BSDF:: EDeltaReflection?EDiscrete:ESolidAngle);
+              
 
                 if (bsdfWeight.isZero())
                     break;
@@ -272,7 +282,11 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
                 if (m_sampler->next1D() >= q)
                     break;
                 throughput /= q;
+                vecPdf.push_back(tmpPdf/q); //是否需要第二个参数?
             }
+            else
+                vecPdf.push_back(tmpPdf); //是否需要第二个参数?
+            vecInvPdf.push_back(tmpInvPdf);
         }
     }
 }
@@ -284,7 +298,7 @@ void ParticleTracer::handleNewParticle() { }
 
 void ParticleTracer::handleSurfaceInteraction(int depth, int nullInteractions,
     bool delta, const Intersection &its, const Medium *medium,
-    const Spectrum &weight, const std::vector<Float> & vecPdf) { }
+    const Spectrum &weight, const std::vector<Float> & vecPdf, const std::vector<Float> & vecInvPdf, Spectrum throughput,const Vector & wi) { }
 
 void ParticleTracer::handleMediumInteraction(int depth, int nullInteractions,
     bool delta, const MediumSamplingRecord &mRec, const Medium *medium,

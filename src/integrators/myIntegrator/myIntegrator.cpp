@@ -62,8 +62,9 @@ public:
             Vector2i filmSize = scene->getSensor()->getFilm()->getSize();
 
             m_initialRadius = std::min(rad / filmSize.x, rad / filmSize.y) * 5;
+            
         }
-
+        Log(EInfo,"%lf",m_initialRadius);
         //此处是添加的代码
         ref<Scheduler> sched = Scheduler::getInstance();
         ref<Sampler> indepSampler = static_cast<Sampler *> (PluginManager::getInstance()->
@@ -176,6 +177,7 @@ public:
         Float eta = 1.0f;
         //depth orgini =1
         //rRec.extra = rRec.depth;
+        std::vector<Float> rayPdf;
         while (rRec.depth <= m_maxDepthRay || m_maxDepthRay < 0) {
             if (!its.isValid() && rRec.depth==1) {
                 /* If no intersection could be found, potentially return
@@ -313,6 +315,8 @@ public:
                 }
             }
 
+            Log(EInfo,"PDF %lf SAMPDF %lf",bsdf->pdf(bRec,bRec.sampledType ==BSDF:: EDeltaReflection?EDiscrete:ESolidAngle), bsdfPdf);
+            Log(EInfo,"WGT%s SAMWGT%s",bsdf->eval(bRec,bRec.sampledType ==  BSDF::EDeltaReflection? EDiscrete:ESolidAngle).toString().c_str(), (bsdfWeight* bsdfPdf).toString().c_str());
             /* Keep track of the throughput and relative
                refractive index along the path */
             throughput *= bsdfWeight;
@@ -347,10 +351,15 @@ public:
                    getting stuck (e.g. due to total internal reflection) */
 
                 Float q = std::min(throughput.max() * eta * eta, (Float) 0.95f);
+                // Log(EInfo,"Q:%lf",q);
                 if (rRec.nextSample1D() >= q)
                     break;
                 throughput /= q;
+                rayPdf.push_back(bsdfPdf/q);
             }
+            else
+                rayPdf.push_back(bsdfPdf);
+            // Log(EInfo,"%lf %f",bsdfPdf,bsdfPdf);
         }
 
         /* Store statistics */
