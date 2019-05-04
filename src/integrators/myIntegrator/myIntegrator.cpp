@@ -185,7 +185,7 @@ public:
                     Li += throughput * scene->evalEnvironment(ray);
                 break;
             }
-            const BSDF *bsdf = its.getBSDF(ray);
+            // const BSDF *bsdf = its.getBSDF(ray);
             //添加代码
 			/* 新增代码: 计算PhotonMap的evaluate */
 
