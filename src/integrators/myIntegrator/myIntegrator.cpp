@@ -175,7 +175,8 @@ public:
         Spectrum throughput(1.0f);
         Float eta = 1.0f;
         //depth orgini =1
-        while (rRec.depth <= m_maxDepthRay || m_maxDepthRay < 0) {
+        rRec.extra = rRec.depth;
+        while (rRec.extra <= m_maxDepthRay || m_maxDepthRay < 0) {
             if (!its.isValid() && rRec.depth==1) {
                 /* If no intersection could be found, potentially return
                    radiance from a environment luminaire if it exists */
@@ -184,23 +185,21 @@ public:
                     Li += throughput * scene->evalEnvironment(ray);
                 break;
             }
-            const BSDF *bsdf = its.getBSDF(ray);
             //添加代码
-            bool mirrorReflect = bsdf->getType() & BSDF::ESmooth;
 			/* 新增代码: 计算PhotonMap的evaluate */
 
             const BSDF *bsdf2 = its.getBSDF();
             Spectrum flux;
             bool PhotonGet= (bsdf2->getType() & BSDF::EAll) == BSDF::EDiffuseReflection ||
                                 (bsdf2->getType() & BSDF::EAll) == BSDF::EDiffuseTransmission;
-           // if(PhotonGet||(rRec.depth >= m_maxDepthRay && m_maxDepthRay > 0)){
+            if(PhotonGet||(rRec.extra >= m_maxDepthRay && m_maxDepthRay > 0)){
             Float M = (Float) m_photonMap->estimateRadianceRaw(
                 its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth), rRec.depth); 
                 // its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth)); 
                 //计算方法需要修改, 跟photon的depth有关.
             Li += throughput * flux/((Float) m_totalEmissions*m_initialRadius*m_initialRadius * M_PI); //需要修改
             // Log(EInfo, Li.toString().c_str());
-           // }
+            }
             const BSDF *bsdf = its.getBSDF(ray);
 
             /* Possibly include emitted radiance if requested */
@@ -212,7 +211,7 @@ public:
             if (its.hasSubsurface() && (rRec.type & RadianceQueryRecord::ESubsurfaceRadiance))
                 Li += throughput * its.LoSub(scene, rRec.sampler, -ray.d, rRec.depth);
 
-            if ((rRec.depth >= m_maxDepthRay && m_maxDepthRay > 0)
+            if ((rRec.extra >= m_maxDepthRay && m_maxDepthRay > 0)
                 || (m_strictNormals && dot(ray.d, its.geoFrame.n)
                     * Frame::cosTheta(its.wi) >= 0)) {
 
@@ -223,12 +222,12 @@ public:
                 break;
             }
 
-       /*      if(PhotonGet) {
+             if(PhotonGet) {
                 rRec.depth++;
-                rRec.depth++;
+                rRec.extra++;
             }else{
-                rRec.depth++;
-            } */
+                rRec.extra++;
+            } 
             
             /* ==================================================================== */
             /*                     Direct illumination sampling                     */
@@ -318,7 +317,6 @@ public:
             throughput *= bsdfWeight;
             eta *= bRec.eta;
             
-            if (rRec.depth ==1 && mirrorReflect)
             /* If a luminaire was hit, estimate the local illumination and
                weight using the power heuristic */
             if (!PhotonGet && hitEmitter &&
@@ -341,7 +339,7 @@ public:
                 break;
             rRec.type = RadianceQueryRecord::ERadianceNoEmission;
 
-            if (rRec.depth++ >= m_rrDepth) {  // 把depth放到前面加
+            if (rRec.depth >= m_rrDepth) {  // 把depth放到前面加
                 /* Russian roulette: try to keep path weights equal to one,
                    while accounting for the solid angle compression at refractive
                    index boundaries. Stop with at least some probability to avoid
@@ -351,7 +349,6 @@ public:
                 if (rRec.nextSample1D() >= q)
                     break;
                 throughput /= q;
-                if(!mirrorReflect) rRec.depth++;
             }
         }
 
