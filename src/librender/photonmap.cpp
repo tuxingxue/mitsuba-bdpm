@@ -238,7 +238,7 @@ struct RawRadianceQueryNew {
         for(int i = 1; i<pd; i++)
             vecP.push_back(vecP[i-1] * photon.data.vecPdf[i-1]);
         Spectrum tp = photon.data.throughput;
-        BSDFSamplingRecord tmpbRec(its,photon.data.wi, its.wi);
+        BSDFSamplingRecord tmpbRec(its,its.toLocal(wi), its.wi);
         Spectrum bEval = bsdf->eval(tmpbRec);//, tmpbRec.sampledType ==BSDF:: EDeltaReflection?EDiscrete:ESolidAngle);
         Float bPdf = bsdf->pdf(tmpbRec);//, tmpbRec.sampledType ==BSDF:: EDeltaReflection?EDiscrete:ESolidAngle);
         if(bPdf ==0 ) //Log(EError, "bPdf1=0");
@@ -249,17 +249,16 @@ struct RawRadianceQueryNew {
             q = std::min(tp.max(), (Float) 0.95f);
         }
         tp /= q;
-        vecP.push_back(vecP[pd-1] * bPdf /q);
+        vecP.push_back(vecP[pd-1] * bPdf * q);
 
-        for(int i = rayDepth -2; i>=0; i--)
-        {
+        for(int i = rayDepth -2; i>=0; i--){
             tp*= vecInvEval[i] / rayInvPdf[i];
             Float q = 1.0;
             if(pd + rayDepth -1 - i >= rrDepth){
                 q = std::min(tp.max(), (Float) 0.95f);
             }
             tp /= q;
-            vecP.push_back(vecP[pd + rayDepth -2 -i] * rayInvPdf[i] / q);
+            vecP.push_back(vecP[pd + rayDepth -2 -i] * rayInvPdf[i] * q);
         }
 
         // Log(EInfo,"1RAY%s;;%lf;;%s",bEval.toString().c_str(),bPdf,tp.toString().c_str());
@@ -272,7 +271,7 @@ struct RawRadianceQueryNew {
         // Log(EInfo,"2RAY%s;;%lf;;%s",bEval.toString().c_str(),bPdf,tp.toString().c_str());
         tp = throughput;
         // Log(EInfo,"3RAY%s;;%lf;;%s",bEval.toString().c_str(),bPdf,tp.toString().c_str());
-        BSDFSamplingRecord tmpbRec2(its,its.wi, photon.data.wi);
+        BSDFSamplingRecord tmpbRec2(its,its.wi,its.toLocal(wi));
         bEval = bsdf->eval(tmpbRec2);//, tmpbRec2.sampledType ==BSDF:: EDeltaReflection?EDiscrete:ESolidAngle);
         bPdf = bsdf->pdf(tmpbRec2);//, tmpbRec2.sampledType ==BSDF:: EDeltaReflection?EDiscrete:ESolidAngle);
         if(bPdf ==0 ) //Log(EError, "bPdf2=0");
@@ -284,7 +283,7 @@ struct RawRadianceQueryNew {
             q = std::min(tp.max(), (Float) 0.95f);
         }
         tp /= q;
-        vecC.push_back(vecC[rayDepth-1] * bPdf /q);
+        vecC.push_back(vecC[rayDepth-1] * bPdf *q);
         // Log(EInfo,"5RAY%s;;%lf;;%s",bEval.toString().c_str(),bPdf,tp.toString().c_str());
 
         for(int i = pd -2; i>=0; i--)
@@ -295,7 +294,7 @@ struct RawRadianceQueryNew {
                 q = std::min(tp.max(), (Float) 0.95f);
             }
             tp /= q;
-            vecC.push_back(vecC[pd + rayDepth -2 -i] * photon.data.vecInvPdf[i] / q);
+            vecC.push_back(vecC[pd + rayDepth -2 -i] * photon.data.vecInvPdf[i] * q);
         }
         // Log(EInfo,"6RAY%s;;%lf;;%s",bEval.toString().c_str(),bPdf,tp.toString().c_str());
         //Log(EInfo,"PHO%s;;%lf;;%lf",bEval.toString().c_str(),bPdf,tp);

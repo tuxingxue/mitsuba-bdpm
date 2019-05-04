@@ -370,7 +370,7 @@ public:
                 if (rRec.nextSample1D() >= q)
                     break;
                 throughput /= q;
-                rayPdf.push_back(bsdfPdf/q);
+                rayPdf.push_back(bsdfPdf*q);
             }
             else
                 rayPdf.push_back(bsdfPdf);

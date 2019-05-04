@@ -222,7 +222,7 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
                 tmpPdf = bsdf->pdf(bRec,bRec.sampledType ==BSDF:: EDeltaReflection?EDiscrete:ESolidAngle);
                 BSDFSamplingRecord tmpbRec = bRec;
                 tmpbRec.wi = bRec.wo;
-                tmpbRec.wo = bRec.wi;
+                tmpbRec.wo = bRec.wi;  //该为reverse管用吗
                 tmpInvPdf = bsdf->pdf(tmpbRec,tmpbRec.sampledType ==BSDF:: EDeltaReflection?EDiscrete:ESolidAngle);
                 tmpInvEval = bsdf->eval(tmpbRec,tmpbRec.sampledType ==BSDF:: EDeltaReflection?EDiscrete:ESolidAngle);
 
@@ -285,7 +285,7 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
                 if (m_sampler->next1D() >= q)
                     break;
                 throughput /= q;
-                vecPdf.push_back(tmpPdf/q); //是否需要第二个参数?
+                vecPdf.push_back(tmpPdf*q); //是否需要第二个参数?
             }
             else
                 vecPdf.push_back(tmpPdf); //是否需要第二个参数?
