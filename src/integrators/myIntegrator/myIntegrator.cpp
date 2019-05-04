@@ -184,6 +184,9 @@ public:
                     Li += throughput * scene->evalEnvironment(ray);
                 break;
             }
+            const BSDF *bsdf = its.getBSDF(ray);
+            //添加代码
+            bool mirrorReflect = bsdf->getType() & BSDF::ESmooth;
 			/* 新增代码: 计算PhotonMap的evaluate */
 
             const BSDF *bsdf2 = its.getBSDF();
@@ -314,7 +317,8 @@ public:
                refractive index along the path */
             throughput *= bsdfWeight;
             eta *= bRec.eta;
-
+            
+            if (rRec.depth ==1 && mirrorReflect)
             /* If a luminaire was hit, estimate the local illumination and
                weight using the power heuristic */
             if (!PhotonGet && hitEmitter &&
@@ -347,6 +351,7 @@ public:
                 if (rRec.nextSample1D() >= q)
                     break;
                 throughput /= q;
+                if(!mirrorReflect) rRec.depth++;
             }
         }
 

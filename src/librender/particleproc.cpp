@@ -161,7 +161,7 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
                 pRec.time);
             medium = emitter->getMedium();
 
-            vecPdf.push_back(emPdf); 
+            //vecPdf.push_back(emPdf); 
 
             handleNewParticle();
         }
