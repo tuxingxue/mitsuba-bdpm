@@ -306,8 +306,8 @@ struct RawRadianceQueryNew {
             sum += vecP[i] * vecC[pd + rayDepth -2 - i];
         }
         Float prob = vecP[pd-1]* vecC[rayDepth -1] / sum;
-
-        result += value / prob;
+    
+        result += value * prob;
     }
 
     const Intersection &its;
