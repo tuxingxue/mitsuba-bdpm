@@ -121,6 +121,7 @@ Photon::Photon(const Point &p, const Normal &normal,
 
     data.vecPdf = vecPdf;
 }
+//更改光子的构造函数,存储更多的信息
 Photon::Photon(const Point &p, const Normal &normal,
                const Vector &dir, const Spectrum &P,
                uint16_t _depth, const std::vector<Float> &vecPdf, const std::vector<Float> & vecInvPdf, 

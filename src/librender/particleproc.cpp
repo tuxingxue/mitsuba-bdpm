@@ -181,7 +181,7 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
             /*                 Radiative Transfer Equation sampling                 */
             /* ==================================================================== */
             if(medium)    Log(EInfo, "medium");
-            if (medium && medium->sampleDistance(Ray(ray, 0, its.t), mRec, m_sampler)) {
+            if(medium && medium->sampleDistance(Ray(ray, 0, its.t), mRec, m_sampler)) {
                 /* Sample the integral
                   \int_x^y tau(x, x') [ \sigma_s \int_{S^2} \rho(\omega,\omega') L(x,\omega') d\omega' ] dx'
                 */
@@ -216,10 +216,10 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
                 BSDFSamplingRecord bRec(its, m_sampler, EImportance);
                 Spectrum bsdfWeight = bsdf->sample(bRec, m_sampler->next2D());
 
-                if(bRec.sampledType == BSDF::EDeltaReflection)
+                /*if(bRec.sampledType == BSDF::EDeltaReflection)
                 {
                     fakedepth++;
-                    if(fakedepth<10)
+                    if(fakedepth<0)
                     {
                         Vector wi = -ray.d, wo = its.toWorld(bRec.wo);
                         ray.setOrigin(its.p);
@@ -228,7 +228,7 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
                         throughput *= bsdfWeight;
                         continue;
                     }
-                }
+                }*/
 
                 /* Forward the surface scattering event to the attached handler */
                 handleSurfaceInteraction(depth, nullInteractions, delta, its, medium, throughput*power, vecPdf, vecInvPdf, vecInvEval, throughput, bRec.wi); //已移位

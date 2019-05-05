@@ -224,10 +224,10 @@ struct RawRadianceQueryNew {
         value *= std::abs(Frame::cosTheta(bRec.wi) /
             (wiDotGeoN * Frame::cosTheta(bRec.wo)));
 
-        /* if(rayDepth == -1)
+        /* if(rayDepth == -1) //最简单的权重选择,也可以取得不错的效果
             result += value;
         else 
-            result += value / (rayDepth + photon.getDepth()-1);   //已修改 */
+            result += value / (rayDepth + photon.getDepth()-1);  */
         
         //计算权重：
         Class * m_theClass = NULL;
