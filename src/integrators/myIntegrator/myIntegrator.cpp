@@ -18,25 +18,22 @@ class myIntegrator : public MonteCarloIntegrator {
 public:
     myIntegrator(const Properties &props)
         : MonteCarloIntegrator(props) { 
-                /* Initial photon query radius (0 = infer based on scene size and sensor resolution) */
+        /* 初始光子半径 (0 表示通过场景大小和分辨率推断) */
         m_initialRadius = props.getFloat("initialRadius", 0);
-        /* Alpha parameter from the paper (influences the speed, at which the photon radius is reduced) */
+        /* Alpha值 */
         m_alpha = props.getFloat("alpha", .7);
-        /* Number of photons to shoot in each iteration */
-        m_photonCount = props.getInteger("photonCount", 25000000);    //已修改,原始值为250000
-        /* Granularity of the work units used in parallelizing the
-           particle tracing task (default: choose automatically). */
+        /* 光子数量 */
+        m_photonCount = props.getInteger("photonCount", 25000000);
+        /* 并行过程的粒度（0表示随机选择） */
         m_granularity = props.getInteger("granularity", 0);
-        /* Longest visualized path length (<tt>-1</tt>=infinite). When a positive value is
-           specified, it must be greater or equal to <tt>2</tt>, which corresponds to single-bounce
-           (direct-only) illumination */
-        m_maxDepth = props.getInteger("maxDepth", -1);          //已修改, 原始值为-
+        /* 光子映射的最大深度 */
+        m_maxDepth = props.getInteger("maxDepth", -1);
         m_maxDepthRay = props.getInteger("maxDepthRay", 1);
-        /* Depth to start using russian roulette */
+        /* 启用 russian roulette 的深度 */
         m_rrDepth = props.getInteger("rrDepth", 3);
-        /* Indicates if the gathering steps should be canceled if not enough photons are generated. */
+        /* 是否自动结束 */
         m_autoCancelGathering = props.getBoolean("autoCancelGathering", true);
-        /* Maximum number of passes to render. -1 renders until the process is stopped. */
+        /* 光子映射趟数 */
         m_maxPasses = props.getInteger("maxPasses", -1);
 
         m_mutex = new Mutex();
@@ -53,10 +50,9 @@ public:
 
     bool render(Scene *scene, RenderQueue *queue, const RenderJob *job,
             int sceneResID, int sensorResID, int samplerResID) {
-        // MonteCarloIntegrator::preprocess(scene, queue, job, sceneResID, sensorResID, samplerResID);
 
         if (m_initialRadius == 0) {
-            /* Guess an initial radius if not provided
+            /* 推测一个合适的光子半径
               (scene width / horizontal or vertical pixel count) * 5 */
             Float rad = scene->getBSphere().radius;
             Vector2i filmSize = scene->getSensor()->getFilm()->getSize();
@@ -70,7 +66,7 @@ public:
         ref<Sampler> indepSampler = static_cast<Sampler *> (PluginManager::getInstance()->
             createObject(MTS_CLASS(Sampler), Properties("independent")));
 
-        /* Create a sampler instance for every core */
+        /* 为每一个核心创建一个取样实例 */
         std::vector<SerializableObject *> samplers(sched->getCoreCount());
         for (size_t i=0; i<sched->getCoreCount(); ++i) {
             ref<Sampler> clonedSampler = indepSampler->clone();
@@ -82,8 +78,8 @@ public:
 
         m_totalEmissions = 0;
         m_totalPhotons = 0;
+        //调用光子映射过程
         photonMapPass(0, queue, job, sceneResID, sensorResID, indepSamplerResID);
-        //以上是添加的代码
 
         SamplingIntegrator::render(scene, queue, job, sceneResID, sensorResID, samplerResID);
         return true;
@@ -95,12 +91,13 @@ public:
                 it, m_totalPhotons);
         ref<Scheduler> sched = Scheduler::getInstance();
 
-        /* Generate the global photon map */
+        /* 创建PhotonMap进程实例 */
         ref<GatherPhotonProcess> proc = new GatherPhotonProcess(
             GatherPhotonProcess::EAllSurfacePhotons, m_photonCount,
             m_granularity, m_maxDepth == -1 ? -1 : (m_maxDepth-1), m_rrDepth, true,
             m_autoCancelGathering, job);
 
+        /* 连接资源 */
         proc->bindResource("scene", sceneResID);
         proc->bindResource("sensor", sensorResID);
         proc->bindResource("sampler", samplerResID);
@@ -108,6 +105,7 @@ public:
         sched->schedule(proc);
         sched->wait(proc);
 
+        /* 生成PhotonMap */
         ref<PhotonMap> photonMap = proc->getPhotonMap();
         photonMap->build();
         Log(EDebug, "Photon map full. Shot " SIZE_T_FMT " particles, excess photons due to parallelism: "
@@ -117,125 +115,55 @@ public:
         m_totalEmissions += proc->getShotParticles();
         m_totalPhotons += photonMap->size();
         
-        m_photonMap = photonMap;// 此条语句应修改为merge功能
+        m_photonMap = photonMap;
 
-        // film->clear();
-        // #if defined(MTS_OPENMP)
-            // #pragma omp parallel for schedule(dynamic)
-        // #endif
-        // for (int wuIdx = 0; wuIdx < (int) m_workUnits.size(); ++wuIdx) {
-            // PPMWorkUnit *wu = m_workUnits[wuIdx];
-            // Spectrum flux, contrib;
-
-            // wu->block->clear();
-            // for (size_t i=0; i<wu->gatherPoints.size(); ++i) {
-                // GatherPoint &g = wu->gatherPoints[i];
-
-                // if (g.radius == 0) {
-                    // /* Generate a black sample -- necessary for proper
-                    //    sample weight computation at surface boundaries */
-                    // wu->block->put(g.sample, g.emission, 1);
-                    // continue;
-                // }
-
-                // Float M = (Float) photonMap->estimateRadianceRaw( 
-                    // g.its, g.radius, flux, m_maxDepth == -1 ? INT_MAX : (m_maxDepth-g.depth));
-                // Float N = g.N;
-
-                // if (N+M == 0) {
-                    // g.flux = contrib = Spectrum(0.0f);
-                // } else {
-                    // Float ratio = (N + m_alpha * M) / (N + M);
-                    // g.flux = (g.flux + flux) * ratio;
-                    // g.radius = g.radius * std::sqrt(ratio);
-                    // g.N = N + m_alpha * M;
-                // }
-                // contrib = g.flux / ((Float) m_totalEmissions * g.radius*g.radius * M_PI)
-                    // + g.emission;
-                // wu->block->put(g.sample, contrib * g.weight, 1);
-            // }
-            // LockGuard guard(m_mutex);
-            // film->put(wu->block);
-        // }
+        /* 刷新工作队列 */
         queue->signalRefresh(job);
     }
 
     Spectrum Li(const RayDifferential &r, RadianceQueryRecord &rRec) const {
-        /* Some aliases and local variables */
+        /* 一些别名和临时变量 */
         const Scene *scene = rRec.scene;
         Intersection &its = rRec.its;
         RayDifferential ray(r);
         Spectrum Li(0.0f);
         bool scattered = false;
 
-        /* Perform the first ray intersection (or ignore if the
-           intersection has already been provided). */
+        /* 找到光线的第一个交汇点 */
         rRec.rayIntersect(ray);
         ray.mint = Epsilon;
 
         Spectrum throughput(1.0f);
         Float eta = 1.0f;
-        //depth orgini =1
-        //rRec.extra = rRec.depth;
-        std::vector<Float> rayPdf;
-        std::vector<Float> rayInvPdf;
-        std::vector<Spectrum> vecInvEval;
-        std::vector<Spectrum> vecThroughput;
-        std::vector<Vector> vecWi;
+        //初始深度为1
+        int fakedepth = 0;  //虚假深度，即镜面反射不会增加深度
+        std::vector<Float> rayPdf;  //用于储存光路每个交点的Pdf值
+        std::vector<Float> rayInvPdf;  //用于储存反向光路每个点的Pdf值
+        std::vector<Spectrum> vecInvEval;  //用于储存反向光路每个点的Eval值
+        std::vector<Spectrum> vecThroughput;  //用于储存光路每个点的throughput值
+        std::vector<Vector> vecWi;     //用于储存光路每个点的入射方向
         while (rRec.depth <= m_maxDepthRay || m_maxDepthRay < 0) {
             if (!its.isValid() && rRec.depth==1) {
-                /* If no intersection could be found, potentially return
-                   radiance from a environment luminaire if it exists */
+                /* 如果没有交会,返回环境光照 */
                 if ((rRec.type & RadianceQueryRecord::EEmittedRadiance)
                     && (!m_hideEmitters || scattered))
                     Li += throughput * scene->evalEnvironment(ray);
                 break;
             }
-            // const BSDF *bsdf = its.getBSDF(ray);
-            //添加代码
-			/* 新增代码: 计算PhotonMap的evaluate */
-
-            const BSDF *bsdf2 = its.getBSDF();
-            Spectrum flux;
-            bool PhotonGet= (bsdf2->getType() & BSDF::EAll) == BSDF::EDiffuseReflection ||
-                                (bsdf2->getType() & BSDF::EAll) == BSDF::EDiffuseTransmission;
-            //if(PhotonGet||(rRec.extra >= m_maxDepthRay && m_maxDepthRay > 0)){
-            Float M = (Float) m_photonMap->estimateRadianceRawNew(
-                its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth), rRec.depth,
-                 m_rrDepth, rayPdf, rayInvPdf,vecInvEval, throughput, vecWi); //需要传入当前vector
-                // its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth)); 
-                //计算方法需要修改, 跟photon的depth有关.
-            Li += throughput * flux/((Float) m_totalEmissions*m_initialRadius*m_initialRadius * M_PI); //需要修改
-            // Log(EInfo, Li.toString().c_str());
-            //}
-            const BSDF *bsdf = its.getBSDF(ray);
-
-            /* Possibly include emitted radiance if requested */
-            if (its.isEmitter() && (rRec.type & RadianceQueryRecord::EEmittedRadiance)
+            //如果碰到光源就获得光源光亮
+            if (rRec.depth==1 && its.isEmitter() && (rRec.type & RadianceQueryRecord::EEmittedRadiance)
                 && (!m_hideEmitters || scattered))
                 Li += throughput * its.Le(-ray.d);
 
             /* Include radiance from a subsurface scattering model if requested */
-            if (its.hasSubsurface() && (rRec.type & RadianceQueryRecord::ESubsurfaceRadiance))
+            if (rRec.depth==1 && its.hasSubsurface() && (rRec.type & RadianceQueryRecord::ESubsurfaceRadiance))
                 Li += throughput * its.LoSub(scene, rRec.sampler, -ray.d, rRec.depth);
 
-            if ((rRec.depth >= m_maxDepthRay && m_maxDepthRay > 0)
-                || (m_strictNormals && dot(ray.d, its.geoFrame.n)
-                    * Frame::cosTheta(its.wi) >= 0)) {
+           
 
-                /* Only continue if:
-                   1. The current path length is below the specifed maximum
-                   2. If 'strictNormals'=true, when the geometric and shading
-                      normals classify the incident direction to the same side */
-                break;
-            }
+            const BSDF *bsdf = its.getBSDF(ray);
 
-            // if(PhotonGet) {
-              //  rRec.depth++;
-               // rRec.extra++;
-            //}else{
-              //  rRec.extra++;
-            //} 
+            /* Possibly include emitted radiance if requested */
             
             /* ==================================================================== */
             /*                     Direct illumination sampling                     */
@@ -275,15 +203,75 @@ public:
             /* ==================================================================== */
             /*                            BSDF sampling                             */
             /* ==================================================================== */
-
+            Spectrum flux;
+            Float M = (Float) m_photonMap->estimateRadianceRawNew(
+                its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth), rRec.depth,
+                 m_rrDepth, rayPdf, rayInvPdf,vecInvEval, throughput, vecWi); //需要传入当前vector
+                // its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth)); 
+            Li += throughput * flux/((Float) m_totalEmissions*m_initialRadius*m_initialRadius * M_PI); 
             /* Sample BSDF * cos(theta) */
             Float bsdfPdf;
             BSDFSamplingRecord bRec(its, rRec.sampler, ERadiance);
             Spectrum bsdfWeight = bsdf->sample(bRec, bsdfPdf, rRec.nextSample2D());
             if (bsdfWeight.isZero())
                 break;
+            if(bRec.sampledType == BSDF::EDeltaReflection)
+            {
+                fakedepth++;
+                if(fakedepth<10)
+                {
+                    bool hitEmitter = false;
+                    Spectrum value;
+                    const Vector wo = its.toWorld(bRec.wo);
+                    Float woDotGeoN = dot(its.geoFrame.n, wo);
+                    ray = Ray(its.p, wo, ray.time);
+                    throughput *= bsdfWeight;
+                    eta *= bRec.eta;
+                    scene->rayIntersect(ray, its);
+                    /*if(scene->rayIntersect(ray, its)) {
+                               // Intersected something - check if it was a luminaire 
+                        if (its.isEmitter()) {
+                            value = its.Le(-ray.d);
+                            dRec.setQuery(ray, its);
+                            hitEmitter = true;
+                            }
+                    } else {
+                        // Intersected nothing -- perhaps there is an environment map? 
+                        const Emitter *env = scene->getEnvironmentEmitter();
+                        if (env) {
+                            if (m_hideEmitters && !scattered)
+                               break;
 
+                            value = env->evalEnvironment(ray);
+                            if (!env->fillDirectSamplingRecord(dRec, ray))
+                                break;
+                            hitEmitter = true;
+                        } else {break;}
+                    }
+                    if ( hitEmitter &&
+                    (rRec.type & RadianceQueryRecord::EDirectSurfaceRadiance)) {  //只有在深度为1才执行
+                       // Compute the prob. of generating that direction using the
+                         // implemented direct illumination sampling technique 
+                        const Float lumPdf = 0;
+                        //Li += throughput * value * miWeight(bsdfPdf, lumPdf);
+                    }*/
+                continue;
+                }
+            }
             //添加
+            //
+            //
+             if ((rRec.depth >= m_maxDepthRay && m_maxDepthRay > 0)
+                || (m_strictNormals && dot(ray.d, its.geoFrame.n)
+                    * Frame::cosTheta(its.wi) >= 0)) {
+
+                /* Only continue if:
+                   1. The current path length is below the specifed maximum
+                   2. If 'strictNormals'=true, when the geometric and shading
+                      normals classify the incident direction to the same side */
+                break;
+            }
+            //
             Float tmpInvPdf; 
             Spectrum tmpInvEval;
             BSDFSamplingRecord tmpbRec = bRec;
@@ -301,8 +289,13 @@ public:
             if (m_strictNormals && woDotGeoN * Frame::cosTheta(bRec.wo) <= 0)
                 break;
 
+            throughput *= bsdfWeight;
+            eta *= bRec.eta;
+
             bool hitEmitter = false;
             Spectrum value;
+            /* Keep track of the throughput and relative
+               refractive index along the path */
 
             /* Trace a ray in this direction */
             ray = Ray(its.p, wo, ray.time);
@@ -332,20 +325,18 @@ public:
 
             // Log(EInfo,"PDF %lf SAMPDF %lf",bsdf->pdf(bRec,bRec.sampledType ==BSDF:: EDeltaReflection?EDiscrete:ESolidAngle), bsdfPdf);
             // Log(EInfo,"WGT%s SAMWGT%s",bsdf->eval(bRec,bRec.sampledType ==  BSDF::EDeltaReflection? EDiscrete:ESolidAngle).toString().c_str(), (bsdfWeight* bsdfPdf).toString().c_str());
-            /* Keep track of the throughput and relative
-               refractive index along the path */
-            throughput *= bsdfWeight;
-            eta *= bRec.eta;
+
             
             /* If a luminaire was hit, estimate the local illumination and
                weight using the power heuristic */
-            if (!PhotonGet && hitEmitter &&
+            if ( hitEmitter &&
                 (rRec.type & RadianceQueryRecord::EDirectSurfaceRadiance)) {  //只有在深度为1才执行
                 /* Compute the prob. of generating that direction using the
                    implemented direct illumination sampling technique */
                 const Float lumPdf = (!(bRec.sampledType & BSDF::EDelta)) ?
                     scene->pdfEmitterDirect(dRec) : 0;
-                Li += throughput * value * miWeight(bsdfPdf, lumPdf);
+
+                //Li += throughput * value * miWeight(bsdfPdf, lumPdf);
             }
                 
 
@@ -355,11 +346,11 @@ public:
 
             /* Set the recursive query type. Stop if no surface was hit by the
                BSDF sample or if indirect illumination was not requested */
-            if (!its.isValid() || !(rRec.type & RadianceQueryRecord::EIndirectSurfaceRadiance))
-                break;
+            if (!its.isValid()) break;
+                
             rRec.type = RadianceQueryRecord::ERadianceNoEmission;
 
-            if (rRec.depth++ >= m_rrDepth) {  // 把depth放到前面加
+            if (rRec.depth++ >= m_rrDepth) {  
                 /* Russian roulette: try to keep path weights equal to one,
                    while accounting for the solid angle compression at refractive
                    index boundaries. Stop with at least some probability to avoid
@@ -372,12 +363,14 @@ public:
                 throughput /= q;
                 rayPdf.push_back(bsdfPdf*q);
             }
-            else
-                rayPdf.push_back(bsdfPdf);
-            rayInvPdf.push_back(tmpInvPdf);
-            vecThroughput.push_back(throughput);
-            vecWi.push_back(tmpWi);
-            vecInvEval.push_back(tmpInvEval);
+            else rayPdf.push_back(bsdfPdf);
+            
+                
+                rayInvPdf.push_back(tmpInvPdf);
+                vecThroughput.push_back(throughput);
+                vecWi.push_back(tmpWi);
+                vecInvEval.push_back(tmpInvEval);
+
             // Log(EInfo,"%lf %f",bsdfPdf,bsdfPdf);
         }
 

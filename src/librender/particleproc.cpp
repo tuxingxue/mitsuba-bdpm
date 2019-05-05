@@ -170,7 +170,7 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
 
         int depth = 1, nullInteractions = 0;
         bool delta = false;
-
+        int fakedepth = 0;
         Spectrum throughput(1.0f); // unitless path throughput (used for russian roulette)
         while (!throughput.isZero() && (depth <= m_maxDepth || m_maxDepth < 0)) {
             Float tmpPdf,tmpInvPdf;
@@ -216,8 +216,25 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
                 BSDFSamplingRecord bRec(its, m_sampler, EImportance);
                 Spectrum bsdfWeight = bsdf->sample(bRec, m_sampler->next2D());
 
+                if(bRec.sampledType == BSDF::EDeltaReflection)
+                {
+                    fakedepth++;
+                    if(fakedepth<10)
+                    {
+                        Vector wi = -ray.d, wo = its.toWorld(bRec.wo);
+                        ray.setOrigin(its.p);
+                        ray.setDirection(wo);
+                        ray.mint = Epsilon;
+                        throughput *= bsdfWeight;
+                        continue;
+                    }
+                }
+
                 /* Forward the surface scattering event to the attached handler */
                 handleSurfaceInteraction(depth, nullInteractions, delta, its, medium, throughput*power, vecPdf, vecInvPdf, vecInvEval, throughput, bRec.wi); //已移位
+
+                if (bsdfWeight.isZero())
+                    break;
 
                 tmpPdf = bsdf->pdf(bRec,bRec.sampledType ==BSDF:: EDeltaReflection?EDiscrete:ESolidAngle);
                 BSDFSamplingRecord tmpbRec = bRec;
@@ -226,9 +243,6 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
                 tmpInvPdf = bsdf->pdf(tmpbRec,tmpbRec.sampledType ==BSDF:: EDeltaReflection?EDiscrete:ESolidAngle);
                 tmpInvEval = bsdf->eval(tmpbRec,tmpbRec.sampledType ==BSDF:: EDeltaReflection?EDiscrete:ESolidAngle);
 
-
-                if (bsdfWeight.isZero())
-                    break;
 
                 /* Prevent light leaks due to the use of shading normals -- [Veach, p. 158] */
                 Vector wi = -ray.d, wo = its.toWorld(bRec.wo);
@@ -289,8 +303,8 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
             }
             else
                 vecPdf.push_back(tmpPdf); //是否需要第二个参数?
-            vecInvPdf.push_back(tmpInvPdf);
-            vecInvEval.push_back(tmpInvEval);
+                vecInvPdf.push_back(tmpInvPdf);
+                vecInvEval.push_back(tmpInvEval);
         }
     }
 }
