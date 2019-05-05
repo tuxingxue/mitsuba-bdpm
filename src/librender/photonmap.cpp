@@ -231,39 +231,40 @@ struct RawRadianceQueryNew {
         
         //计算权重：
         Class * m_theClass = NULL;
-        //光-》照
+        //由光源-》照相机的路线上的可能性
         int pd = photon.data.vecPdf.size() + 1;
         std::vector<Float> vecP;
         vecP.push_back(1.0);
-        for(int i = 1; i<pd; i++)
+        for(int i = 1; i<pd; i++) //前面photondepth个已经计算好了,直接计算
             vecP.push_back(vecP[i-1] * photon.data.vecPdf[i-1]);
-        Spectrum tp = photon.data.throughput;
-        BSDFSamplingRecord tmpbRec(its,its.toLocal(wi), its.wi);
-        Spectrum bEval = bsdf->eval(tmpbRec);//, tmpbRec.sampledType ==BSDF:: EDeltaReflection?EDiscrete:ESolidAngle);
-        Float bPdf = bsdf->pdf(tmpbRec);//, tmpbRec.sampledType ==BSDF:: EDeltaReflection?EDiscrete:ESolidAngle);
+        Spectrum tp = photon.data.throughput;  //存储光子的throughput用于计算russianroulette的概率
+        BSDFSamplingRecord tmpbRec(its,its.toLocal(wi), its.wi);  //构造光源光线与相机光线的相交模型,计算pdf,eval
+        Spectrum bEval = bsdf->eval(tmpbRec);
+        Float bPdf = bsdf->pdf(tmpbRec);
         if(bPdf ==0 ) //Log(EError, "bPdf1=0");
         return;
         tp *= bEval / bPdf;
-        Float q = 1.0;
+        Float q = 1.0;   //利用throughput用于计算russianroulette的概率
         if(pd >= rrDepth){
             q = std::min(tp.max(), (Float) 0.95f);
         }
         tp /= q;
         vecP.push_back(vecP[pd-1] * bPdf * q);
 
-        for(int i = rayDepth -2; i>=0; i--){
-            tp*= vecInvEval[i] / rayInvPdf[i];
+        for(int i = rayDepth -2; i>=0; i--){   //对于后面sensordepth个点,使用之前算好的的pdf和eval直接得出结果
+            tp*= vecInvEval[i] / rayInvPdf[i];  //更新throughput用于计算russianroulette的概率
             Float q = 1.0;
             if(pd + rayDepth -1 - i >= rrDepth){
-                q = std::min(tp.max(), (Float) 0.95f);
+                q = std::min(tp.max(), (Float) 0.95f);  //利用throughput用于计算russianroulette的概率
             }
             tp /= q;
-            vecP.push_back(vecP[pd + rayDepth -2 -i] * rayInvPdf[i] * q);
-        }
+            vecP.push_back(vecP[pd + rayDepth -2 -i] * rayInvPdf[i] * q);  //得到最终的概率
+        } 
 
         // Log(EInfo,"1RAY%s;;%lf;;%s",bEval.toString().c_str(),bPdf,tp.toString().c_str());
         //Log(EInfo,"through %lf",throughput.toString().c_str());
-        //照-》光
+
+        //由照相机-》光源的路线上的可能性,与之前完全同理
         std::vector<Float> vecC;
         vecC.push_back(1.0);
         for(int i = 1; i<rayDepth; i++)
@@ -299,7 +300,7 @@ struct RawRadianceQueryNew {
         // Log(EInfo,"6RAY%s;;%lf;;%s",bEval.toString().c_str(),bPdf,tp.toString().c_str());
         //Log(EInfo,"PHO%s;;%lf;;%lf",bEval.toString().c_str(),bPdf,tp);
 
-        //分母；
+        //按照MIS的balance strategy来计算权重
         Float sum = 0.0;
         for(int i = 0; i<= pd+rayDepth -2; i++)
         {
@@ -307,7 +308,7 @@ struct RawRadianceQueryNew {
         }
         Float prob = vecP[pd-1]* vecC[rayDepth -1] / sum;
     
-        result += value * prob;
+        result += value * prob;//加到最终结果上
     }
 
     const Intersection &its;
