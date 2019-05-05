@@ -177,6 +177,7 @@ public:
         Float eta = 1.0f;
         //depth orgini =1
         //rRec.extra = rRec.depth;
+        int fakedepth = 0;
         std::vector<Float> rayPdf;
         std::vector<Float> rayInvPdf;
         std::vector<Spectrum> vecInvEval;
@@ -193,49 +194,20 @@ public:
             }
             // const BSDF *bsdf = its.getBSDF(ray);
             //添加代码
-			/* 新增代码: 计算PhotonMap的evaluate */
-
-            const BSDF *bsdf2 = its.getBSDF();
-            Spectrum flux;
-            bool PhotonGet= (bsdf2->getType() & BSDF::EAll) == BSDF::EDiffuseReflection ||
-                                (bsdf2->getType() & BSDF::EAll) == BSDF::EDiffuseTransmission;
-            //if(PhotonGet||(rRec.extra >= m_maxDepthRay && m_maxDepthRay > 0)){
-            Float M = (Float) m_photonMap->estimateRadianceRawNew(
-                its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth), rRec.depth,
-                 m_rrDepth, rayPdf, rayInvPdf,vecInvEval, throughput, vecWi); //需要传入当前vector
-                // its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth)); 
-                //计算方法需要修改, 跟photon的depth有关.
-            Li += throughput * flux/((Float) m_totalEmissions*m_initialRadius*m_initialRadius * M_PI); //需要修改
-            // Log(EInfo, Li.toString().c_str());
-            //}
-            const BSDF *bsdf = its.getBSDF(ray);
-
-            /* Possibly include emitted radiance if requested */
-            if (its.isEmitter() && (rRec.type & RadianceQueryRecord::EEmittedRadiance)
+            //
+            if (rRec.depth==1 && its.isEmitter() && (rRec.type & RadianceQueryRecord::EEmittedRadiance)
                 && (!m_hideEmitters || scattered))
                 Li += throughput * its.Le(-ray.d);
 
             /* Include radiance from a subsurface scattering model if requested */
-            if (its.hasSubsurface() && (rRec.type & RadianceQueryRecord::ESubsurfaceRadiance))
+            if (rRec.depth==1 && its.hasSubsurface() && (rRec.type & RadianceQueryRecord::ESubsurfaceRadiance))
                 Li += throughput * its.LoSub(scene, rRec.sampler, -ray.d, rRec.depth);
 
-            if ((rRec.depth >= m_maxDepthRay && m_maxDepthRay > 0)
-                || (m_strictNormals && dot(ray.d, its.geoFrame.n)
-                    * Frame::cosTheta(its.wi) >= 0)) {
+           
 
-                /* Only continue if:
-                   1. The current path length is below the specifed maximum
-                   2. If 'strictNormals'=true, when the geometric and shading
-                      normals classify the incident direction to the same side */
-                break;
-            }
+            const BSDF *bsdf = its.getBSDF(ray);
 
-            // if(PhotonGet) {
-              //  rRec.depth++;
-               // rRec.extra++;
-            //}else{
-              //  rRec.extra++;
-            //} 
+            /* Possibly include emitted radiance if requested */
             
             /* ==================================================================== */
             /*                     Direct illumination sampling                     */
@@ -282,8 +254,40 @@ public:
             Spectrum bsdfWeight = bsdf->sample(bRec, bsdfPdf, rRec.nextSample2D());
             if (bsdfWeight.isZero())
                 break;
-
+            if(bRec.sampledType == BSDF::EDeltaReflection)
+            {
+                fakedepth++;
+                if(fakedepth<10)
+                {
+                    const Vector wo = its.toWorld(bRec.wo);
+                    Float woDotGeoN = dot(its.geoFrame.n, wo);
+                    ray = Ray(its.p, wo, ray.time);
+                    scene->rayIntersect(ray, its);
+                    throughput *= bsdfWeight;
+                    eta *= bRec.eta;
+                    continue;
+                }
+            }
+            Spectrum flux;
+            Float M = (Float) m_photonMap->estimateRadianceRawNew(
+                its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth), rRec.depth,
+                 m_rrDepth, rayPdf, rayInvPdf,vecInvEval, throughput, vecWi); //需要传入当前vector
+                // its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth)); 
+            Li += throughput * flux/((Float) m_totalEmissions*m_initialRadius*m_initialRadius * M_PI); 
             //添加
+            //
+            //
+             if ((rRec.depth >= m_maxDepthRay && m_maxDepthRay > 0)
+                || (m_strictNormals && dot(ray.d, its.geoFrame.n)
+                    * Frame::cosTheta(its.wi) >= 0)) {
+
+                /* Only continue if:
+                   1. The current path length is below the specifed maximum
+                   2. If 'strictNormals'=true, when the geometric and shading
+                      normals classify the incident direction to the same side */
+                break;
+            }
+            //
             Float tmpInvPdf; 
             Spectrum tmpInvEval;
             BSDFSamplingRecord tmpbRec = bRec;
@@ -301,8 +305,13 @@ public:
             if (m_strictNormals && woDotGeoN * Frame::cosTheta(bRec.wo) <= 0)
                 break;
 
+            throughput *= bsdfWeight;
+            eta *= bRec.eta;
+
             bool hitEmitter = false;
             Spectrum value;
+            /* Keep track of the throughput and relative
+               refractive index along the path */
 
             /* Trace a ray in this direction */
             ray = Ray(its.p, wo, ray.time);
@@ -332,20 +341,17 @@ public:
 
             // Log(EInfo,"PDF %lf SAMPDF %lf",bsdf->pdf(bRec,bRec.sampledType ==BSDF:: EDeltaReflection?EDiscrete:ESolidAngle), bsdfPdf);
             // Log(EInfo,"WGT%s SAMWGT%s",bsdf->eval(bRec,bRec.sampledType ==  BSDF::EDeltaReflection? EDiscrete:ESolidAngle).toString().c_str(), (bsdfWeight* bsdfPdf).toString().c_str());
-            /* Keep track of the throughput and relative
-               refractive index along the path */
-            throughput *= bsdfWeight;
-            eta *= bRec.eta;
+
             
             /* If a luminaire was hit, estimate the local illumination and
                weight using the power heuristic */
-            if (!PhotonGet && hitEmitter &&
+            if ( hitEmitter &&
                 (rRec.type & RadianceQueryRecord::EDirectSurfaceRadiance)) {  //只有在深度为1才执行
                 /* Compute the prob. of generating that direction using the
                    implemented direct illumination sampling technique */
                 const Float lumPdf = (!(bRec.sampledType & BSDF::EDelta)) ?
                     scene->pdfEmitterDirect(dRec) : 0;
-                Li += throughput * value * miWeight(bsdfPdf, lumPdf);
+                //Li += throughput * value * miWeight(bsdfPdf, lumPdf);
             }
                 
 
@@ -355,11 +361,11 @@ public:
 
             /* Set the recursive query type. Stop if no surface was hit by the
                BSDF sample or if indirect illumination was not requested */
-            if (!its.isValid() || !(rRec.type & RadianceQueryRecord::EIndirectSurfaceRadiance))
-                break;
+            if (!its.isValid()) break;
+                
             rRec.type = RadianceQueryRecord::ERadianceNoEmission;
 
-            if (rRec.depth++ >= m_rrDepth) {  // 把depth放到前面加
+            if (rRec.depth++ >= m_rrDepth) {  
                 /* Russian roulette: try to keep path weights equal to one,
                    while accounting for the solid angle compression at refractive
                    index boundaries. Stop with at least some probability to avoid
@@ -374,10 +380,10 @@ public:
             }
             else
                 rayPdf.push_back(bsdfPdf);
-            rayInvPdf.push_back(tmpInvPdf);
-            vecThroughput.push_back(throughput);
-            vecWi.push_back(tmpWi);
-            vecInvEval.push_back(tmpInvEval);
+                rayInvPdf.push_back(tmpInvPdf);
+                vecThroughput.push_back(throughput);
+                vecWi.push_back(tmpWi);
+                vecInvEval.push_back(tmpInvEval);
             // Log(EInfo,"%lf %f",bsdfPdf,bsdfPdf);
         }
 
