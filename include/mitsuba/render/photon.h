@@ -46,11 +46,11 @@ struct PhotonData {
     uint8_t thetaN;         //!< Discretized surface normal (\a theta component)
     uint8_t phiN;           //!< Discretized surface normal (\a phi component)
     uint16_t depth;         //!< Photon depth (number of preceding interactions)
-    std::vector<Float> vecPdf;
-    std::vector<Float> vecInvPdf;
-    std::vector<Spectrum> vecInvEval;
-    Spectrum throughput;
-    Vector wi;
+    std::vector<Float> vecPdf;  //光线路径途中的pdf
+    std::vector<Float> vecInvPdf; // 光线路径途中交换出入光线后的pdf
+    std::vector<Spectrum> vecInvEval; //光线路径途中交换出入光线后的eval
+    Spectrum throughput; // 光线的能量(weight)
+    Vector wi;          //光线的入射角
 };
 
 /** \brief Memory-efficient photon representation for use with

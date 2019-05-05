@@ -136,7 +136,7 @@ public:
         Spectrum throughput(1.0f);
         Float eta = 1.0f;
         //初始深度为1
-        int fakedepth = 0;  //虚假深度，即镜面反射不会增加深度
+        int fakedepth = 0;  //虚假深度，即镜面反射不会增加深度,但是会增加假深度,用于防止循环
         std::vector<Float> rayPdf;  //用于储存光路每个交点的Pdf值
         std::vector<Float> rayInvPdf;  //用于储存反向光路每个点的Pdf值
         std::vector<Spectrum> vecInvEval;  //用于储存反向光路每个点的Eval值
@@ -150,12 +150,12 @@ public:
                     Li += throughput * scene->evalEnvironment(ray);
                 break;
             }
-            //如果碰到光源就获得光源光亮
+            /* 如果碰到光源就获得光源光亮 */
             if (rRec.depth==1 && its.isEmitter() && (rRec.type & RadianceQueryRecord::EEmittedRadiance)
                 && (!m_hideEmitters || scattered))
                 Li += throughput * its.Le(-ray.d);
 
-            /* Include radiance from a subsurface scattering model if requested */
+            /* 加入次表面光亮 */
             if (rRec.depth==1 && its.hasSubsurface() && (rRec.type & RadianceQueryRecord::ESubsurfaceRadiance))
                 Li += throughput * its.LoSub(scene, rRec.sampler, -ray.d, rRec.depth);
 
@@ -163,62 +163,30 @@ public:
 
             const BSDF *bsdf = its.getBSDF(ray);
 
-            /* Possibly include emitted radiance if requested */
-            
-            /* ==================================================================== */
-            /*                     Direct illumination sampling                     */
-            /* ==================================================================== */
-
-            /* Estimate the direct illumination if this is requested */
             DirectSamplingRecord dRec(its);
-
-            // if (rRec.type & RadianceQueryRecord::EDirectSurfaceRadiance &&
-                // (bsdf->getType() & BSDF::ESmooth)) {
-                // Spectrum value = scene->sampleEmitterDirect(dRec, rRec.nextSample2D());
-                // if (!value.isZero()) {
-                    // const Emitter *emitter = static_cast<const Emitter *>(dRec.object);
-
-                    /* Allocate a record for querying the BSDF */
-                    // BSDFSamplingRecord bRec(its, its.toLocal(dRec.d), ERadiance);
-
-                    /* Evaluate BSDF * cos(theta) */
-                    // const Spectrum bsdfVal = bsdf->eval(bRec);
-
-                    /* Prevent light leaks due to the use of shading normals */
-                    // if (!bsdfVal.isZero() && (!m_strictNormals
-                            // || dot(its.geoFrame.n, dRec.d) * Frame::cosTheta(bRec.wo) > 0)) {
-
-                        /* Calculate prob. of having generated that direction
-                           using BSDF sampling */
-                        // Float bsdfPdf = (emitter->isOnSurface() && dRec.measure == ESolidAngle)
-                            // ? bsdf->pdf(bRec) : 0;
-
-                        /* Weight using the power heuristic */
-                        // Float weight = miWeight(dRec.pdf, bsdfPdf);
-                        // Li += throughput * value * bsdfVal * weight;
-                    // }
-                // }
-            // }
 
             /* ==================================================================== */
             /*                            BSDF sampling                             */
             /* ==================================================================== */
+
             Spectrum flux;
             Float M = (Float) m_photonMap->estimateRadianceRawNew(
                 its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth), rRec.depth,
-                 m_rrDepth, rayPdf, rayInvPdf,vecInvEval, throughput, vecWi); //需要传入当前vector
-                // its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth)); 
+                 m_rrDepth, rayPdf, rayInvPdf,vecInvEval, throughput, vecWi);
             Li += throughput * flux/((Float) m_totalEmissions*m_initialRadius*m_initialRadius * M_PI); 
-            /* Sample BSDF * cos(theta) */
+            /*传入当前的所有pdf,eval vector和各种信息,计算多重重要性采样的权中,从而当前点对像素的权重*/
+
+            /* 根据BSDF,通过重要性采样来采集下一个点 */
             Float bsdfPdf;
             BSDFSamplingRecord bRec(its, rRec.sampler, ERadiance);
             Spectrum bsdfWeight = bsdf->sample(bRec, bsdfPdf, rRec.nextSample2D());
             if (bsdfWeight.isZero())
                 break;
+            /*如果是镜面反射,则继续sample下一个点,不计算深度和权重*/
             if(bRec.sampledType == BSDF::EDeltaReflection)
             {
                 fakedepth++;
-                if(fakedepth<10)
+                if(fakedepth<10)//镜面反射次数过多则跳出,防止循环
                 {
                     bool hitEmitter = false;
                     Spectrum value;
@@ -228,50 +196,16 @@ public:
                     throughput *= bsdfWeight;
                     eta *= bRec.eta;
                     scene->rayIntersect(ray, its);
-                    /*if(scene->rayIntersect(ray, its)) {
-                               // Intersected something - check if it was a luminaire 
-                        if (its.isEmitter()) {
-                            value = its.Le(-ray.d);
-                            dRec.setQuery(ray, its);
-                            hitEmitter = true;
-                            }
-                    } else {
-                        // Intersected nothing -- perhaps there is an environment map? 
-                        const Emitter *env = scene->getEnvironmentEmitter();
-                        if (env) {
-                            if (m_hideEmitters && !scattered)
-                               break;
-
-                            value = env->evalEnvironment(ray);
-                            if (!env->fillDirectSamplingRecord(dRec, ray))
-                                break;
-                            hitEmitter = true;
-                        } else {break;}
-                    }
-                    if ( hitEmitter &&
-                    (rRec.type & RadianceQueryRecord::EDirectSurfaceRadiance)) {  //只有在深度为1才执行
-                       // Compute the prob. of generating that direction using the
-                         // implemented direct illumination sampling technique 
-                        const Float lumPdf = 0;
-                        //Li += throughput * value * miWeight(bsdfPdf, lumPdf);
-                    }*/
-                continue;
+                    continue;
                 }
             }
-            //添加
-            //
-            //
-             if ((rRec.depth >= m_maxDepthRay && m_maxDepthRay > 0)
+            /*如果大于最大深度则跳出*/
+            if ((rRec.depth >= m_maxDepthRay && m_maxDepthRay > 0)
                 || (m_strictNormals && dot(ray.d, its.geoFrame.n)
                     * Frame::cosTheta(its.wi) >= 0)) {
-
-                /* Only continue if:
-                   1. The current path length is below the specifed maximum
-                   2. If 'strictNormals'=true, when the geometric and shading
-                      normals classify the incident direction to the same side */
                 break;
             }
-            //
+            //改变hitpoint的入射出射角,计算对应的pdf和eval,用于计算重要性采样权重
             Float tmpInvPdf; 
             Spectrum tmpInvEval;
             BSDFSamplingRecord tmpbRec = bRec;
@@ -283,7 +217,7 @@ public:
 
             scattered |= bRec.sampledType != BSDF::ENull;
 
-            /* Prevent light leaks due to the use of shading normals */
+            /* 使用shading normals防止光泄露 */
             const Vector wo = its.toWorld(bRec.wo);
             Float woDotGeoN = dot(its.geoFrame.n, wo);
             if (m_strictNormals && woDotGeoN * Frame::cosTheta(bRec.wo) <= 0)
@@ -294,11 +228,12 @@ public:
 
             bool hitEmitter = false;
             Spectrum value;
-            /* Keep track of the throughput and relative
-               refractive index along the path */
+            /* 更新eta和throughput*/
 
-            /* Trace a ray in this direction */
+            /*沿着sample方向放出光线 */
             ray = Ray(its.p, wo, ray.time);
+
+            //无用代码,保留用于调试
             if(scene->rayIntersect(ray, its)) {
                 /* Intersected something - check if it was a luminaire */
                 if (its.isEmitter()) {
@@ -338,23 +273,20 @@ public:
 
                 //Li += throughput * value * miWeight(bsdfPdf, lumPdf);
             }
+            // 无用代码结束
                 
 
             /* ==================================================================== */
             /*                         Indirect illumination                        */
             /* ==================================================================== */
 
-            /* Set the recursive query type. Stop if no surface was hit by the
-               BSDF sample or if indirect illumination was not requested */
+            /* 如果没有相交,就结束,不同担心是否遇到场景外/光源,因为bdpm不用计算这个 */
             if (!its.isValid()) break;
                 
             rRec.type = RadianceQueryRecord::ERadianceNoEmission;
 
             if (rRec.depth++ >= m_rrDepth) {  
-                /* Russian roulette: try to keep path weights equal to one,
-                   while accounting for the solid angle compression at refractive
-                   index boundaries. Stop with at least some probability to avoid
-                   getting stuck (e.g. due to total internal reflection) */
+                /* Russian roulette技巧,一定概率结束光线,用于提高效率 */
 
                 Float q = std::min(throughput.max() * eta * eta, (Float) 0.95f);
                 // Log(EInfo,"Q:%lf",q);
@@ -363,9 +295,9 @@ public:
                 throughput /= q;
                 rayPdf.push_back(bsdfPdf*q);
             }
-            else rayPdf.push_back(bsdfPdf);
+            else {rayPdf.push_back(bsdfPdf);}
             
-                
+                //更新对应的vector
                 rayInvPdf.push_back(tmpInvPdf);
                 vecThroughput.push_back(throughput);
                 vecWi.push_back(tmpWi);
@@ -374,7 +306,7 @@ public:
             // Log(EInfo,"%lf %f",bsdfPdf,bsdfPdf);
         }
 
-        /* Store statistics */
+        /*保存统计数据*/
         avgPathLength.incrementBase();
         avgPathLength += rRec.depth;
 
