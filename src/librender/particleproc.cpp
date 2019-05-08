@@ -141,7 +141,7 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
             emitter = static_cast<const Emitter *>(pRec.object);
             medium = emitter->getMedium();
 
-            /*与handle绑定*/
+            /* 与handle绑定 */
             handleEmission(pRec, medium, power);
 
             DirectionSamplingRecord dRec;
@@ -199,7 +199,7 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
                 /* 如果这个方向没有表面 */
                 break;
             } else {
-                /*当发射反射的时候*/
+                /* 当发射反射的时候 */
                 if (medium)
                     throughput *= mRec.transmittance / mRec.pdfFailure;
 
@@ -208,24 +208,7 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
                 //进行sample
                 BSDFSamplingRecord bRec(its, m_sampler, EImportance);
                 Spectrum bsdfWeight = bsdf->sample(bRec, m_sampler->next2D());
-            
-
-                //无用代码
-                /*if(bRec.sampledType == BSDF::EDeltaReflection)
-                {
-                    fakedepth++;
-                    if(fakedepth<0)
-                    {
-                        Vector wi = -ray.d, wo = its.toWorld(bRec.wo);
-                        ray.setOrigin(its.p);
-                        ray.setDirection(wo);
-                        ray.mint = Epsilon;
-                        throughput *= bsdfWeight;
-                        continue;
-                    }
-                }*/
-
-                handleSurfaceInteraction(depth, nullInteractions, delta, its, medium, throughput*power, vecPdf, vecInvPdf, vecInvEval, throughput, bRec.wi); //已移位
+                handleSurfaceInteraction(depth, nullInteractions, delta, its, medium, throughput*power, vecPdf, vecInvPdf, vecInvEval, throughput,bRec.wi); //已移位
 
                 if (bsdfWeight.isZero())
                     break;
@@ -239,7 +222,7 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
                 tmpInvEval = bsdf->eval(tmpbRec,tmpbRec.sampledType ==BSDF:: EDeltaReflection?EDiscrete:ESolidAngle);
 
 
-                /*用 shading normals防止光泄露*/
+                /* 用 shading normals防止光泄露 */
                 Vector wi = -ray.d, wo = its.toWorld(bRec.wo);
                 Float wiDotGeoN = dot(its.geoFrame.n, wi),
                       woDotGeoN = dot(its.geoFrame.n, wo);
@@ -247,7 +230,8 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
                     woDotGeoN * Frame::cosTheta(bRec.wo) <= 0)
                     break;
 
-                /* 更新eta和throughput*/
+                /* 更新eta和throughput */
+
                 throughput *= bsdfWeight;
                 if (its.isMediumTransition())
                     medium = its.getTargetMedium(woDotGeoN);
@@ -294,7 +278,7 @@ void ParticleTracer::process(const WorkUnit *workUnit, WorkResult *workResult,
                 vecPdf.push_back(tmpPdf*q); 
             }
             else
-                vecPdf.push_back(tmpPdf); /*更新对应的vector*/
+                vecPdf.push_back(tmpPdf); /* 更新对应的vector */
                 vecInvPdf.push_back(tmpInvPdf);
                 vecInvEval.push_back(tmpInvEval);
         }
