@@ -9,6 +9,7 @@
 #include <mitsuba/render/gatherproc.h>
 #include <mitsuba/render/renderqueue.h>
 #include <mitsuba/render/renderproc.h>
+#include <math.h>
 
 MTS_NAMESPACE_BEGIN
 
@@ -33,14 +34,12 @@ public:
         m_rrDepth = props.getInteger("rrDepth", 3);
         /* 是否自动结束 */
         m_autoCancelGathering = props.getBoolean("autoCancelGathering", true);
-        /* 光子映射趟数 */
-        m_maxPasses = props.getInteger("maxPasses", -1);
+        /* 是否使用改进*/
+        m_modify = props.getInteger("modify", 0);
 
         m_mutex = new Mutex();
         if (m_maxDepth <= 1 && m_maxDepth != -1)
             Log(EError, "Maximum depth must either be set to \"-1\" or \"2\" or higher!");
-        if (m_maxPasses <= 0 && m_maxPasses != -1)
-            Log(EError, "Maximum number of Passes must either be set to \"-1\" or \"1\" or higher!");
     
     }
 
@@ -168,13 +167,48 @@ public:
             /* ==================================================================== */
             /*                            BSDF sampling                             */
             /* ==================================================================== */
-
+            if(m_modify==0){
             Spectrum flux;
             Float M = (Float) m_photonMap->estimateRadianceRawNew(
                 its, m_initialRadius, flux, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth), rRec.depth,
                  m_rrDepth, rayPdf, rayInvPdf,vecInvEval, throughput, vecWi);
             Li += throughput * flux/((Float) m_totalEmissions*m_initialRadius*m_initialRadius * M_PI); 
             /*传入当前的所有pdf,eval vector和各种信息,计算多重重要性采样的权中,从而当前点对像素的权重*/
+            }
+            else{
+                Float hes1 = 3.9, hes2=2.4;
+                Spectrum flux1,flux2,flux3;
+                Float M1 = (Float) m_photonMap->estimateRadianceRawNew(
+                    its, m_initialRadius, flux1, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth), rRec.depth,
+                     m_rrDepth, rayPdf, rayInvPdf,vecInvEval, throughput, vecWi);
+                Float M2 = (Float) m_photonMap->estimateRadianceRawNew(
+                    its, m_initialRadius/2, flux2, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth), rRec.depth,
+                     m_rrDepth, rayPdf, rayInvPdf,vecInvEval, throughput, vecWi);
+                Float f1 = flux1.average(),f2=flux2.average();
+                if(f1>hes1*f2||f2==0||f1==0)
+                {
+                    Li += throughput * flux1/((Float) m_totalEmissions*m_initialRadius*m_initialRadius * M_PI); 
+                }
+                else
+                {
+                    Float M3 = (Float) m_photonMap->estimateRadianceRawNew(
+                    its, m_initialRadius/4, flux3, (m_maxDepthRay == -1 ? INT_MAX : m_maxDepth), rRec.depth,
+                     m_rrDepth, rayPdf, rayInvPdf,vecInvEval, throughput, vecWi);
+                     Float f3=flux3.average();
+                     if(f2>hes1*f3)
+                     {
+                         Float rad = (std::max(hes2,f1/f2)-hes2)/(4-hes2)/2+1/2;
+                         Float wei = (M_PI+rad*sqrt(1-rad*rad)-acos(rad));
+                         Li += throughput * flux1/((Float) m_totalEmissions*m_initialRadius*m_initialRadius * wei); 
+                     }
+                    else{
+                         Float rad = -(std::max(hes2,f1/f2)-hes2)/(4-hes2)/2+1/2;
+                         Float wei = (M_PI+rad*sqrt(1-rad*rad)-acos(rad));
+                         Li += throughput * flux1/((Float) m_totalEmissions*m_initialRadius*m_initialRadius * wei); 
+                    }
+                }
+                
+            }
 
             /* 根据BSDF,通过重要性采样来采集下一个点 */
             Float bsdfPdf;
@@ -345,7 +379,7 @@ public:
     bool m_running;
     bool m_autoCancelGathering;
     ref<Mutex> m_mutex;
-    int m_maxPasses;
+    int m_modify;
 };
 
 MTS_IMPLEMENT_CLASS_S(myIntegrator, false, MonteCarloIntegrator)
