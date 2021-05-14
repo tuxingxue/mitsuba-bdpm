@@ -195,9 +195,11 @@ public:
      *    all preceding interactions except for the current surface
      *    interaction.
      */
+    // 改函数
     virtual void handleSurfaceInteraction(int depth, int nullInteractions,
         bool delta, const Intersection &its, const Medium *medium,
-        const Spectrum &weight, const std::vector<Float> & vecPdf);
+        const Spectrum &weight, const std::vector<Float> & vecPdf, const std::vector<Float> & vecInvPdf,
+        const std::vector<Spectrum> & vecInvEval, Spectrum throughput,const Vector & wi);
 
     /**
      * \brief Handle a medium interaction event

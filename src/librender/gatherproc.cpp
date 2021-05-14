@@ -135,10 +135,11 @@ public:
     void handleNewParticle() {
         m_workResult->nextParticle();
     }
-
+    //存储photon的信息的函数
     void handleSurfaceInteraction(int depth_, int nullInteractions, bool delta,
             const Intersection &its, const Medium *medium,
-            const Spectrum &weight, const std::vector<Float> & vecPdf) {
+            const Spectrum &weight, const std::vector<Float> & vecPdf, const std::vector<Float> & vecInvPdf, 
+            const std::vector<Spectrum> & vecInvEval, Spectrum throughput, const Vector & wi) {
         int bsdfType = its.getBSDF()->getType(), depth = depth_ - nullInteractions;
         if (!(bsdfType & BSDF::EDiffuseReflection) && !(bsdfType & BSDF::EGlossyReflection))
             return;
@@ -146,7 +147,8 @@ public:
         if ((m_type == GatherPhotonProcess::ECausticPhotons && depth > 1 && delta)
          || (m_type == GatherPhotonProcess::ESurfacePhotons && depth > 1 && !delta)
          || (m_type == GatherPhotonProcess::EAllSurfacePhotons))
-            m_workResult->put(Photon(its.p, its.geoFrame.n, -its.toWorld(its.wi), weight, depth, vecPdf));
+            m_workResult->put(Photon(its.p, its.geoFrame.n, -its.toWorld(its.wi), weight, depth,
+             vecPdf,vecInvPdf,vecInvEval,throughput,wi));
     }
 
     void handleMediumInteraction(int depth, int nullInteractions, bool delta,
